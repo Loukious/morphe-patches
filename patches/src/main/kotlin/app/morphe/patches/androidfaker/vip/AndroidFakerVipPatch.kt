@@ -29,7 +29,12 @@ internal object HookStateIsVipUserFingerprint : Fingerprint(
     parameters = listOf(),
     custom = { _, classDef ->
         classDef.methods.any { method ->
-            method.name == "getSimSlotCount" && method.parameters.isEmpty()
+            method.parameters.isEmpty() && method.name in setOf(
+                "getSimSlotCount",
+                "getSelectedSimCountry",
+                "getSelectedSimOperator",
+                "getSelectedSimMnc"
+            )
         }
     }
 )
@@ -40,11 +45,25 @@ internal object ProfilesStateIsVipUserFingerprint : Fingerprint(
     parameters = listOf(),
     custom = { _, classDef ->
         classDef.methods.any { method ->
-            method.name == "getSelectedPackage" && method.parameters.isEmpty()
+            method.parameters.isEmpty() && method.name in setOf(
+                "getSelectedPackage",
+                "getIsLoading"
+            )
         } && classDef.methods.none { method ->
-            method.name == "getSimSlotCount"
+            method.name in setOf(
+                "getSimSlotCount",
+                "getSelectedSimCountry",
+                "getSelectedSimOperator",
+                "getSelectedSimMnc"
+            )
         }
     }
+)
+
+internal object GenericIsVipUserFingerprint : Fingerprint(
+    name = "getIsVipUser",
+    returnType = "Ljava/lang/Boolean;",
+    parameters = listOf()
 )
 
 internal object NativeDoInitFingerprint : Fingerprint(
@@ -62,8 +81,24 @@ val androidFakerVipPatch = bytecodePatch(
     compatibleWith(COMPATIBILITY_ANDROID_FAKER)
 
     execute {
-        HookStateIsVipUserFingerprint.method.returnEarly(true)
-        ProfilesStateIsVipUserFingerprint.method.returnEarly(true)
-        NativeDoInitFingerprint.method.returnEarly(true)
+        var patchedVipGetter = false
+
+        if (HookStateIsVipUserFingerprint.methodOrNull != null) {
+            HookStateIsVipUserFingerprint.method.returnEarly(true)
+            patchedVipGetter = true
+        }
+
+        if (ProfilesStateIsVipUserFingerprint.methodOrNull != null) {
+            ProfilesStateIsVipUserFingerprint.method.returnEarly(true)
+            patchedVipGetter = true
+        }
+
+        if (!patchedVipGetter && GenericIsVipUserFingerprint.methodOrNull != null) {
+            GenericIsVipUserFingerprint.method.returnEarly(true)
+        }
+
+        if (NativeDoInitFingerprint.methodOrNull != null) {
+            NativeDoInitFingerprint.method.returnEarly(true)
+        }
     }
 }
