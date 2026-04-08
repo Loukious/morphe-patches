@@ -70,7 +70,7 @@ internal object NativeDoInitFingerprint : Fingerprint(
     definingClass = "Lcom/androidfaker/core/util/Native;",
     name = "doInit",
     custom = { method, _ ->
-        method.parameters.size == 1
+        method.parameters.size == 1 && method.implementation != null
     }
 )
 
@@ -83,21 +83,21 @@ val androidFakerVipPatch = bytecodePatch(
     execute {
         var patchedVipGetter = false
 
-        if (HookStateIsVipUserFingerprint.methodOrNull != null) {
+        if (HookStateIsVipUserFingerprint.methodOrNull?.implementation != null) {
             HookStateIsVipUserFingerprint.method.returnEarly(true)
             patchedVipGetter = true
         }
 
-        if (ProfilesStateIsVipUserFingerprint.methodOrNull != null) {
+        if (ProfilesStateIsVipUserFingerprint.methodOrNull?.implementation != null) {
             ProfilesStateIsVipUserFingerprint.method.returnEarly(true)
             patchedVipGetter = true
         }
 
-        if (!patchedVipGetter && GenericIsVipUserFingerprint.methodOrNull != null) {
+        if (!patchedVipGetter && GenericIsVipUserFingerprint.methodOrNull?.implementation != null) {
             GenericIsVipUserFingerprint.method.returnEarly(true)
         }
 
-        if (NativeDoInitFingerprint.methodOrNull != null) {
+        if (NativeDoInitFingerprint.methodOrNull?.implementation != null) {
             NativeDoInitFingerprint.method.returnEarly(true)
         }
     }
