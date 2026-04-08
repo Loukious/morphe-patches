@@ -94,7 +94,7 @@ internal object CoreIsVipFingerprint : Fingerprint(
 )
 
 internal object CoreVipStatusGetterFingerprint : Fingerprint(
-    definingClass = "La/ms6$a;",
+    definingClass = "La/ms6\$a;",
     returnType = "I",
     parameters = listOf(),
     custom = { method, _ ->
@@ -105,7 +105,7 @@ internal object CoreVipStatusGetterFingerprint : Fingerprint(
 )
 
 internal object CoreVipDueDateGetterFingerprint : Fingerprint(
-    definingClass = "La/ms6$a;",
+    definingClass = "La/ms6\$a;",
     returnType = "J",
     parameters = listOf(),
     custom = { method, _ ->
