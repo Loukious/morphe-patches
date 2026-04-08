@@ -7,10 +7,10 @@ import app.morphe.patcher.patch.ApkFileType
 import app.morphe.patcher.patch.AppTarget
 import app.morphe.patcher.patch.Compatibility
 import app.morphe.patcher.patch.bytecodePatch
-import app.morphe.patcher.string
 import app.morphe.util.returnEarly
 import com.android.tools.smali.dexlib2.AccessFlags
 import com.android.tools.smali.dexlib2.Opcode
+import com.android.tools.smali.dexlib2.iface.ClassDef
 
 private val COMPATIBILITY_ANDROID_FAKER = Compatibility(
     name = "Android Faker",
@@ -38,19 +38,18 @@ internal object NativeDoInitFingerprint : Fingerprint(
     }
 )
 
-private object HookStateClassFingerprint : Fingerprint(
-    accessFlags = listOf(AccessFlags.PUBLIC, AccessFlags.FINAL),
-    returnType = "Ljava/lang/String;",
-    parameters = listOf(),
-    filters = listOf(
-        string("HookState(hookData="),
-        string("isVipUser="),
-        string("simSlotCount=")
-    )
-)
+private fun isHookStateLikeClass(classDef: ClassDef): Boolean {
+    return classDef.fields.count { it.type == "Ljava/util/List;" } >= 5 &&
+            classDef.fields.count { it.type == "Ljava/lang/String;" } >= 5 &&
+            (classDef.fields.any { it.type == "Ljava/lang/Boolean;" } ||
+                    classDef.fields.any { it.type == "Z" }) &&
+            classDef.fields.any { it.type == "I" } &&
+            classDef.methods.any { method ->
+                method.returnType == classDef.type && method.parameters.size >= 18
+            }
+}
 
 internal object HookStateVipGetterFingerprint : Fingerprint(
-    classFingerprint = HookStateClassFingerprint,
     accessFlags = listOf(AccessFlags.PUBLIC, AccessFlags.FINAL),
     returnType = "Ljava/lang/Boolean;",
     parameters = listOf(),
@@ -58,8 +57,21 @@ internal object HookStateVipGetterFingerprint : Fingerprint(
         Opcode.IGET_OBJECT,
         Opcode.RETURN_OBJECT
     ),
-    custom = { method, _ ->
-        method.implementation != null
+    custom = { method, classDef ->
+        method.implementation != null && isHookStateLikeClass(classDef)
+    }
+)
+
+internal object HookStateVipGetterPrimitiveFingerprint : Fingerprint(
+    accessFlags = listOf(AccessFlags.PUBLIC, AccessFlags.FINAL),
+    returnType = "Z",
+    parameters = listOf(),
+    filters = OpcodesFilter.opcodesToFilters(
+        Opcode.IGET_BOOLEAN,
+        Opcode.RETURN
+    ),
+    custom = { method, classDef ->
+        method.implementation != null && isHookStateLikeClass(classDef)
     }
 )
 
@@ -74,16 +86,17 @@ val androidFakerVipPatch = bytecodePatch(
             NativeDoInitFingerprint.method.returnEarly(true)
         }
 
-        HookStateVipGetterFingerprint.methodOrNull?.let { method ->
-            if (method.implementation != null) {
-                method.addInstructions(
-                    0,
-                    """
-                        sget-object v0, Ljava/lang/Boolean;->TRUE:Ljava/lang/Boolean;
-                        return-object v0
-                    """
-                )
-            }
+        val vipGetterObject = HookStateVipGetterFingerprint.methodOrNull
+        if (vipGetterObject?.implementation != null) {
+            vipGetterObject.addInstructions(
+                0,
+                """
+                    sget-object v0, Ljava/lang/Boolean;->TRUE:Ljava/lang/Boolean;
+                    return-object v0
+                """
+            )
+        } else if (HookStateVipGetterPrimitiveFingerprint.methodOrNull?.implementation != null) {
+            HookStateVipGetterPrimitiveFingerprint.method.returnEarly(true)
         }
     }
 }
