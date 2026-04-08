@@ -100,7 +100,7 @@ internal object CoreVipStatusGetterFingerprint : Fingerprint(
     custom = { method, _ ->
         method.name != "hashCode" &&
                 method.implementation != null &&
-                method.implementation!!.instructions.size <= 6
+                method.implementation!!.instructions.count() <= 6
     }
 )
 
@@ -110,7 +110,7 @@ internal object CoreVipDueDateGetterFingerprint : Fingerprint(
     parameters = listOf(),
     custom = { method, _ ->
         method.implementation != null &&
-                method.implementation!!.instructions.size <= 6
+                method.implementation!!.instructions.count() <= 6
     }
 )
 
