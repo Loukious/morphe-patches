@@ -1,12 +1,16 @@
 package app.morphe.patches.androidfaker.vip
 
 import app.morphe.patcher.Fingerprint
+import app.morphe.patcher.OpcodesFilter
 import app.morphe.patcher.extensions.InstructionExtensions.addInstructions
 import app.morphe.patcher.patch.ApkFileType
 import app.morphe.patcher.patch.AppTarget
 import app.morphe.patcher.patch.Compatibility
 import app.morphe.patcher.patch.bytecodePatch
+import app.morphe.patcher.string
 import app.morphe.util.returnEarly
+import com.android.tools.smali.dexlib2.AccessFlags
+import com.android.tools.smali.dexlib2.Opcode
 
 private val COMPATIBILITY_ANDROID_FAKER = Compatibility(
     name = "Android Faker",
@@ -34,13 +38,28 @@ internal object NativeDoInitFingerprint : Fingerprint(
     }
 )
 
+private object HookStateClassFingerprint : Fingerprint(
+    accessFlags = listOf(AccessFlags.PUBLIC, AccessFlags.FINAL),
+    returnType = "Ljava/lang/String;",
+    parameters = listOf(),
+    filters = listOf(
+        string("HookState(hookData="),
+        string("isVipUser="),
+        string("simSlotCount=")
+    )
+)
+
 internal object HookStateVipGetterFingerprint : Fingerprint(
-    definingClass = "La/qe2;",
-    name = "z",
+    classFingerprint = HookStateClassFingerprint,
+    accessFlags = listOf(AccessFlags.PUBLIC, AccessFlags.FINAL),
+    returnType = "Ljava/lang/Boolean;",
+    parameters = listOf(),
+    filters = OpcodesFilter.opcodesToFilters(
+        Opcode.IGET_OBJECT,
+        Opcode.RETURN_OBJECT
+    ),
     custom = { method, _ ->
-        method.parameters.isEmpty() &&
-                (method.returnType == "Z" || method.returnType == "Ljava/lang/Boolean;") &&
-                method.implementation != null
+        method.implementation != null
     }
 )
 
@@ -57,17 +76,13 @@ val androidFakerVipPatch = bytecodePatch(
 
         HookStateVipGetterFingerprint.methodOrNull?.let { method ->
             if (method.implementation != null) {
-                if (method.returnType == "Z") {
-                    method.returnEarly(true)
-                } else {
-                    method.addInstructions(
-                        0,
-                        """
-                            sget-object v0, Ljava/lang/Boolean;->TRUE:Ljava/lang/Boolean;
-                            return-object v0
-                        """
-                    )
-                }
+                method.addInstructions(
+                    0,
+                    """
+                        sget-object v0, Ljava/lang/Boolean;->TRUE:Ljava/lang/Boolean;
+                        return-object v0
+                    """
+                )
             }
         }
     }
