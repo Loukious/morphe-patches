@@ -74,6 +74,46 @@ internal object NativeDoInitFingerprint : Fingerprint(
     }
 )
 
+internal object NativeInitFingerprint : Fingerprint(
+    definingClass = "Lcom/androidfaker/core/util/Native;",
+    name = "init",
+    returnType = "V",
+    parameters = listOf("Ljava/lang/String;"),
+    custom = { method, _ ->
+        method.implementation != null
+    }
+)
+
+internal object CoreIsVipFingerprint : Fingerprint(
+    definingClass = "La/ms6;",
+    returnType = "Z",
+    parameters = listOf(),
+    custom = { method, _ ->
+        method.implementation != null
+    }
+)
+
+internal object CoreVipStatusGetterFingerprint : Fingerprint(
+    definingClass = "La/ms6$a;",
+    returnType = "I",
+    parameters = listOf(),
+    custom = { method, _ ->
+        method.name != "hashCode" &&
+                method.implementation != null &&
+                method.implementation!!.instructions.size <= 6
+    }
+)
+
+internal object CoreVipDueDateGetterFingerprint : Fingerprint(
+    definingClass = "La/ms6$a;",
+    returnType = "J",
+    parameters = listOf(),
+    custom = { method, _ ->
+        method.implementation != null &&
+                method.implementation!!.instructions.size <= 6
+    }
+)
+
 val androidFakerVipPatch = bytecodePatch(
     name = "Android Faker VIP unlock",
     description = "Forces Android Faker VIP state to be enabled.",
@@ -99,6 +139,22 @@ val androidFakerVipPatch = bytecodePatch(
 
         if (NativeDoInitFingerprint.methodOrNull?.implementation != null) {
             NativeDoInitFingerprint.method.returnEarly(true)
+        }
+
+        if (NativeInitFingerprint.methodOrNull?.implementation != null) {
+            NativeInitFingerprint.method.returnEarly()
+        }
+
+        if (CoreIsVipFingerprint.methodOrNull?.implementation != null) {
+            CoreIsVipFingerprint.method.returnEarly(true)
+        }
+
+        if (CoreVipStatusGetterFingerprint.methodOrNull?.implementation != null) {
+            CoreVipStatusGetterFingerprint.method.returnEarly(1)
+        }
+
+        if (CoreVipDueDateGetterFingerprint.methodOrNull?.implementation != null) {
+            CoreVipDueDateGetterFingerprint.method.returnEarly(4102444800L)
         }
     }
 }
