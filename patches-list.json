@@ -1,5 +1,5 @@
 {
-  "version": "1.23.0-dev.9",
+  "version": "1.23.0-dev.1",
   "patches": [
     {
       "name": "Alternative thumbnails",
@@ -36,6 +36,18 @@
           "20.40.45",
           "20.31.42",
           "20.21.37"
+        ]
+      },
+      "options": []
+    },
+    {
+      "name": "Android Faker VIP unlock",
+      "description": "Forces Android Faker VIP state to be enabled.",
+      "use": true,
+      "dependencies": [],
+      "compatiblePackages": {
+        "com.android1500.androidfaker": [
+          "v2.0.0-beta-9-5"
         ]
       },
       "options": []
