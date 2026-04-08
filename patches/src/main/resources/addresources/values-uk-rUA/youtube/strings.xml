@@ -123,7 +123,7 @@ Second \"item\" text"</string>
   <string name="morphe_hide_playables_summary_off">Розділ \"ігрові елементи\" показується</string>
   <string name="morphe_hide_search_term_thumbnails_title">Приховати мініатюри пошукових запитів</string>
   <string name="morphe_hide_search_term_thumbnails_summary_on">Мініатюри пошукових запитів приховано</string>
-  <string name="morphe_hide_search_term_thumbnails_summary_off">Мініатюри пошукових запитів показано</string>
+  <string name="morphe_hide_search_term_thumbnails_summary_off">Мініатюри пошукових запитів показуються</string>
   <!-- 'Show more' should be translated using the same localized wording YouTube displays for the button.
           This button usually appears when searching for a YouTube creator. -->
   <string name="morphe_hide_show_more_button_title">Приховати кнопку \"Показати більше\"</string>
@@ -512,20 +512,20 @@ Second \"item\" text"</string>
 
 Інформація: Може не працювати на прямих трансляціях"</string>
   <string name="morphe_play_all_button_summary_off">Кнопка \"Відтворити все\" не показується</string>
-  <string name="morphe_play_all_button_type_title">Режим генерації списку відтворення</string>
+  <string name="morphe_play_all_button_type_title">Режим генерування списку відтворення</string>
   <string name="morphe_play_all_button_type_entry_0">Весь контент (Сортування за часом, за зростанням)</string>
   <string name="morphe_play_all_button_type_entry_1">Весь контент (Сортування за часом)</string>
-  <string name="morphe_play_all_button_type_entry_2">Всі вміст (Сортувати за популярністю)</string>
-  <string name="morphe_play_all_button_type_entry_3">Лише відео (Сортування за часом)</string>
-  <string name="morphe_play_all_button_type_entry_4">Лише відео (Сортування за популярністю)</string>
-  <string name="morphe_play_all_button_type_entry_5">Лише Shorts (Сортування за часом)</string>
-  <string name="morphe_play_all_button_type_entry_6">Лише Shorts (Сортування за популярністю)</string>
-  <string name="morphe_play_all_button_type_entry_7">Лише трансляції (Сортування за часом)</string>
-  <string name="morphe_play_all_button_type_entry_8">Лише трансляції (Сортування за популярністю)</string>
-  <string name="morphe_play_all_button_type_entry_9">Лише контент для усіх спонсорів</string>
-  <string name="morphe_play_all_button_type_entry_10">Лише відео для спонсорів</string>
-  <string name="morphe_play_all_button_type_entry_11">Лише Shorts для спонсорів</string>
-  <string name="morphe_play_all_button_type_entry_12">Лише прямі трансляції для спонсорів</string>
+  <string name="morphe_play_all_button_type_entry_2">Весь контент (Сортування за популярністю)</string>
+  <string name="morphe_play_all_button_type_entry_3">Тільки відео (Сортувати за часом)</string>
+  <string name="morphe_play_all_button_type_entry_4">Тільки відео (Сортувати за популярністю)</string>
+  <string name="morphe_play_all_button_type_entry_5">Тільки Shorts (Сортування за часом)</string>
+  <string name="morphe_play_all_button_type_entry_6">Тільки Shorts (Сортування за популярністю)</string>
+  <string name="morphe_play_all_button_type_entry_7">Тільки потокові відео (Сортування за часом)</string>
+  <string name="morphe_play_all_button_type_entry_8">Тільки потокові відео (Сортування за популярністю)</string>
+  <string name="morphe_play_all_button_type_entry_9">Весь контент для спонсорів</string>
+  <string name="morphe_play_all_button_type_entry_10">Тільки відео для спонсорів</string>
+  <string name="morphe_play_all_button_type_entry_11">Тільки Shorts для спонсорів</string>
+  <string name="morphe_play_all_button_type_entry_12">Тільки прямі трансляції для спонсорів</string>
   <string name="morphe_play_all_button_not_available_toast">Не вдалося створити список відтворення через невідповідність ID каналу</string>
   <!-- interaction.reload.reloadVideoPatch -->
   <string name="morphe_reload_video_title">Кнопка перезавантаження відео</string>
