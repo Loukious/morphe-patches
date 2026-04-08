@@ -1,10 +1,27 @@
 package app.morphe.patches.androidfaker.vip
 
 import app.morphe.patcher.Fingerprint
+import app.morphe.patcher.patch.ApkFileType
+import app.morphe.patcher.patch.AppTarget
+import app.morphe.patcher.patch.Compatibility
 import app.morphe.patcher.patch.bytecodePatch
 import app.morphe.util.returnEarly
 
-private const val COMPATIBILITY_ANDROID_FAKER = "com.android1500.androidfaker"
+private val COMPATIBILITY_ANDROID_FAKER = Compatibility(
+    name = "Android Faker",
+    packageName = "com.android1500.androidfaker",
+    apkFileType = ApkFileType.APK_REQUIRED,
+    appIconColor = 0x14B8A6,
+    targets = listOf(
+        AppTarget(version = "v2.0.0-beta-9-5", minSdk = 27),
+        AppTarget(
+            version = null,
+            isExperimental = true,
+            minSdk = 27,
+            description = "Fallback support for unlisted Android Faker versions"
+        )
+    )
+)
 
 internal object HookStateIsVipUserFingerprint : Fingerprint(
     name = "getIsVipUser",
