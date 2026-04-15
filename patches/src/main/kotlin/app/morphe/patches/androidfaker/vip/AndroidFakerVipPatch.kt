@@ -14,9 +14,7 @@ import com.android.tools.smali.dexlib2.AccessFlags
 import com.android.tools.smali.dexlib2.Opcode
 import com.android.tools.smali.dexlib2.builder.MutableMethodImplementation
 import com.android.tools.smali.dexlib2.iface.ClassDef
-import com.android.tools.smali.dexlib2.iface.instruction.formats.Instruction35c
 import com.android.tools.smali.dexlib2.iface.reference.MethodReference
-import com.android.tools.smali.dexlib2.iface.reference.StringReference
 import com.android.tools.smali.dexlib2.immutable.ImmutableMethod
 import com.android.tools.smali.dexlib2.immutable.reference.ImmutableTypeReference
 import com.android.tools.smali.dexlib2.builder.instruction.BuilderInstruction10x
@@ -277,64 +275,36 @@ val androidFakerVipPatch = bytecodePatch(
             }
         }
 
-        // ─── 2. Nuke loadLibrary("af_native") calls ─────────────────────
-        // Remove all invocations of System.loadLibrary("af_native") across
-        // the entire APK so the hostile native library never loads.
-        // Pattern: const-string[/jumbo] vX, "af_native" ... invoke-static {vX}, System.loadLibrary
-        // The two instructions may NOT be adjacent (try-catch, moves, etc).
+        // ─── 2. Nuke System.loadLibrary() in StartupAgent.<clinit> ─────────
+        // The library name "af_native" is computed at runtime via nz5.m17470a()
+        // (XOR string decryptor), so there's no const-string "af_native" to match.
+        // Instead, find ALL System.loadLibrary calls in <clinit> methods and NOP them.
+        // The native library's JNI_OnLoad does signature verification which will
+        // crash on a re-signed APK, so we must prevent it from loading entirely.
         classDefForEach { classDef ->
             classDef.methods.forEach methodLoop@{ method ->
+                // Only target static initializers — that's where loadLibrary lives
+                if (method.name != "<clinit>") return@methodLoop
                 val impl = method.implementation ?: return@methodLoop
                 val instructions = impl.instructions.toList()
 
-                // Pass 1: find indices of const-string "af_native" and the register it targets
-                val afNativeLoads = mutableMapOf<Int, Int>() // index → register
-                instructions.forEachIndexed { index, insn ->
-                    if (insn.opcode == Opcode.CONST_STRING || insn.opcode == Opcode.CONST_STRING_JUMBO) {
-                        val ref = (insn as? com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction)
-                            ?.reference as? StringReference
-                        if (ref?.string == "af_native") {
-                            val reg = (insn as? com.android.tools.smali.dexlib2.iface.instruction.OneRegisterInstruction)
-                                ?.registerA ?: -1
-                            if (reg >= 0) afNativeLoads[index] = reg
-                        }
-                    }
-                }
-                if (afNativeLoads.isEmpty()) return@methodLoop
-
-                // Pass 2: find invoke-static System.loadLibrary that uses one of those registers
-                val indicesToNop = mutableListOf<Pair<Int, Int>>() // pairs of (constIdx, invokeIdx)
+                val indicesToNop = mutableListOf<Int>()
                 instructions.forEachIndexed { index, insn ->
                     if (insn.opcode != Opcode.INVOKE_STATIC && insn.opcode != Opcode.INVOKE_STATIC_RANGE)
                         return@forEachIndexed
                     val ref = (insn as? com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction)
                         ?.reference as? MethodReference ?: return@forEachIndexed
-                    if (ref.name != "loadLibrary" || ref.definingClass != "Ljava/lang/System;")
-                        return@forEachIndexed
-
-                    // Check if any const-string "af_native" loaded the register used here
-                    val invokeReg = when (insn) {
-                        is Instruction35c -> insn.registerC  // first argument register
-                        is com.android.tools.smali.dexlib2.iface.instruction.formats.Instruction3rc -> insn.startRegister
-                        else -> -1
-                    }
-                    // Find the nearest preceding const-string that set this register
-                    for ((constIdx, constReg) in afNativeLoads) {
-                        if (constIdx < index && constReg == invokeReg) {
-                            indicesToNop.add(constIdx to index)
-                            break
-                        }
+                    if (ref.name == "loadLibrary" && ref.definingClass == "Ljava/lang/System;") {
+                        indicesToNop.add(index)
                     }
                 }
 
                 if (indicesToNop.isNotEmpty()) {
                     val mutableClass = mutableClassDefBy(classDef)
                     val mutableMethod = mutableClass.findMutableMethodOf(method)
-                    indicesToNop.forEach { (constIdx, invokeIdx) ->
+                    indicesToNop.forEach { idx ->
                         mutableMethod.implementation!!.replaceInstruction(
-                            constIdx, BuilderInstruction10x(Opcode.NOP))
-                        mutableMethod.implementation!!.replaceInstruction(
-                            invokeIdx, BuilderInstruction10x(Opcode.NOP))
+                            idx, BuilderInstruction10x(Opcode.NOP))
                     }
                 }
             }
