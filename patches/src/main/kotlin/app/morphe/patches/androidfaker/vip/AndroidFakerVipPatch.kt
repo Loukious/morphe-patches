@@ -16,15 +16,15 @@ import com.android.tools.smali.dexlib2.builder.MutableMethodImplementation
 import com.android.tools.smali.dexlib2.iface.ClassDef
 import com.android.tools.smali.dexlib2.iface.reference.MethodReference
 import com.android.tools.smali.dexlib2.immutable.ImmutableMethod
-import com.android.tools.smali.dexlib2.immutable.reference.ImmutableTypeReference
 import com.android.tools.smali.dexlib2.builder.instruction.BuilderInstruction10x
 import com.android.tools.smali.dexlib2.builder.instruction.BuilderInstruction11n
 import com.android.tools.smali.dexlib2.builder.instruction.BuilderInstruction11x
+import com.android.tools.smali.dexlib2.builder.instruction.BuilderInstruction35c
 import com.android.tools.smali.dexlib2.builder.instruction.BuilderInstruction21s
-import com.android.tools.smali.dexlib2.builder.instruction.BuilderInstruction22c
 import com.android.tools.smali.dexlib2.builder.instruction.BuilderInstruction21c
 import com.android.tools.smali.dexlib2.builder.instruction.BuilderInstruction51l
 import com.android.tools.smali.dexlib2.immutable.reference.ImmutableFieldReference
+import com.android.tools.smali.dexlib2.immutable.reference.ImmutableMethodReference
 
 private val COMPATIBILITY_ANDROID_FAKER = Compatibility(
     name = "Android Faker",
@@ -205,6 +205,7 @@ val androidFakerVipPatch = bytecodePatch(
             "and neuters loadLibrary(\"af_native\") to prevent the anti-tamper kill thread.",
 ) {
     compatibleWith(COMPATIBILITY_ANDROID_FAKER)
+    extendWith("extensions/androidfaker.mpe")
 
     execute {
         // ─── Helper: replace a native method with a pre-built impl ───────
@@ -247,44 +248,45 @@ val androidFakerVipPatch = bytecodePatch(
             }
         }
 
-        // getDex() → return empty byte[] (the UI app doesn't need the spoofing DEX)
+        // getDex() → delegate to extension runtime extractor
+        // If this returns empty bytes, ModuleMain bails out and no spoofing hooks load.
         NativeGetDexFingerprint.methodOrNull?.let { method ->
-            if (method.implementation != null) {
-                // Prepend: const/4 v0, 0 ; new-array v0, v0, [B ; return-object v0
-                method.implementation!!.addInstruction(0,
-                    BuilderInstruction11x(Opcode.RETURN_OBJECT, 0))
-                method.implementation!!.addInstruction(0,
-                    BuilderInstruction22c(
-                        Opcode.NEW_ARRAY, 0, 0,
-                        ImmutableTypeReference("[B")
-                    ))
-                method.implementation!!.addInstruction(0,
-                    BuilderInstruction11n(Opcode.CONST_4, 0, 0))
-            } else {
-                // Build: const/4 v0, 0x0 ; new-array v0, v0, [B ; return-object v0
-                val impl = MutableMethodImplementation(2)
-                impl.addInstruction(BuilderInstruction11n(Opcode.CONST_4, 0, 0))
-                impl.addInstruction(
-                    BuilderInstruction22c(
-                        Opcode.NEW_ARRAY, 0, 0,
-                        ImmutableTypeReference("[B")
+            val impl = MutableMethodImplementation(2)
+            impl.addInstruction(
+                BuilderInstruction35c(
+                    Opcode.INVOKE_STATIC,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    ImmutableMethodReference(
+                        "Lapp/morphe/extension/androidfaker/PatchedDexProvider;",
+                        "get",
+                        emptyList(),
+                        "[B"
                     )
                 )
-                impl.addInstruction(BuilderInstruction11x(Opcode.RETURN_OBJECT, 0))
-                replaceNativeMethod(method, impl)
-            }
+            )
+            impl.addInstruction(BuilderInstruction11x(Opcode.MOVE_RESULT_OBJECT, 0))
+            impl.addInstruction(BuilderInstruction11x(Opcode.RETURN_OBJECT, 0))
+            replaceNativeMethod(method, impl)
         }
 
-        // ─── 2. Nuke System.loadLibrary() in StartupAgent.<clinit> ─────────
+        // ─── 2. Nuke System.loadLibrary() in AndroidFaker loader path ──────
         // The library name "af_native" is computed at runtime via nz5.m17470a()
         // (XOR string decryptor), so there's no const-string "af_native" to match.
-        // Instead, find ALL System.loadLibrary calls in <clinit> methods and NOP them.
+        // Critical call-site is ModuleMain.onPackageLoaded, so we must scan all methods,
+        // not only <clinit>. Limit scope to known loader classes.
         // The native library's JNI_OnLoad does signature verification which will
         // crash on a re-signed APK, so we must prevent it from loading entirely.
         classDefForEach { classDef ->
+            val inLoaderPath = classDef.type == "Lcom/android1500/androidfaker/data/loader/StartupAgent;" ||
+                    classDef.type == "Lcom/android1500/androidfaker/data/loader/ModuleMain;"
+            if (!inLoaderPath) return@classDefForEach
+
             classDef.methods.forEach methodLoop@{ method ->
-                // Only target static initializers — that's where loadLibrary lives
-                if (method.name != "<clinit>") return@methodLoop
                 val impl = method.implementation ?: return@methodLoop
                 val instructions = impl.instructions.toList()
 
