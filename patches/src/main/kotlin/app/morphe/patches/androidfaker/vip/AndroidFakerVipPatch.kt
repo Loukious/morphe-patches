@@ -23,6 +23,7 @@ import com.android.tools.smali.dexlib2.immutable.reference.ImmutableTypeReferenc
 import com.android.tools.smali.dexlib2.builder.instruction.BuilderInstruction10x
 import com.android.tools.smali.dexlib2.builder.instruction.BuilderInstruction11n
 import com.android.tools.smali.dexlib2.builder.instruction.BuilderInstruction11x
+import com.android.tools.smali.dexlib2.builder.instruction.BuilderInstruction21s
 import com.android.tools.smali.dexlib2.builder.instruction.BuilderInstruction22c
 import com.android.tools.smali.dexlib2.builder.instruction.BuilderInstruction21c
 import com.android.tools.smali.dexlib2.builder.instruction.BuilderInstruction51l
@@ -419,10 +420,10 @@ val androidFakerVipPatch = bytecodePatch(
                 ) {
                     val mutableClass = mutableClassDefBy(classDef)
                     val mutableMethod = mutableClass.findMutableMethodOf(method)
-                    // p2 is the boolean param (p0=this, p1=HookConfig, p2=boolean)
+                    // boolean param register may be >v15, use const/16 (v0-v255)
                     val boolReg = mutableMethod.implementation!!.registerCount - 1
                     mutableMethod.implementation!!.addInstruction(0,
-                        BuilderInstruction11n(Opcode.CONST_4, boolReg, 1))
+                        BuilderInstruction21s(Opcode.CONST_16, boolReg, 1))
                 }
 
                 // ApplyModel: HookConfig method(HookConfig, ?, String, boolean)
@@ -434,10 +435,10 @@ val androidFakerVipPatch = bytecodePatch(
                 ) {
                     val mutableClass = mutableClassDefBy(classDef)
                     val mutableMethod = mutableClass.findMutableMethodOf(method)
-                    // Last param is the boolean (force to true)
+                    // boolean param register may be >v15, use const/16 (v0-v255)
                     val boolReg = mutableMethod.implementation!!.registerCount - 1
                     mutableMethod.implementation!!.addInstruction(0,
-                        BuilderInstruction11n(Opcode.CONST_4, boolReg, 1))
+                        BuilderInstruction21s(Opcode.CONST_16, boolReg, 1))
                 }
             }
         }
