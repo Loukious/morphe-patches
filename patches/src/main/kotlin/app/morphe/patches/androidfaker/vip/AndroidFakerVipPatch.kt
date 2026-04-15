@@ -2,8 +2,7 @@ package app.morphe.patches.androidfaker.vip
 
 import app.morphe.patcher.Fingerprint
 import app.morphe.patcher.OpcodesFilter
-import app.morphe.patcher.extensions.InstructionExtensions.addInstructions
-import app.morphe.patcher.extensions.InstructionExtensions.replaceInstruction
+
 import app.morphe.patcher.patch.ApkFileType
 import app.morphe.patcher.patch.AppTarget
 import app.morphe.patcher.patch.Compatibility
@@ -21,9 +20,13 @@ import com.android.tools.smali.dexlib2.iface.reference.MethodReference
 import com.android.tools.smali.dexlib2.iface.reference.StringReference
 import com.android.tools.smali.dexlib2.immutable.ImmutableMethod
 import com.android.tools.smali.dexlib2.immutable.reference.ImmutableTypeReference
+import com.android.tools.smali.dexlib2.builder.instruction.BuilderInstruction10x
 import com.android.tools.smali.dexlib2.builder.instruction.BuilderInstruction11n
 import com.android.tools.smali.dexlib2.builder.instruction.BuilderInstruction11x
 import com.android.tools.smali.dexlib2.builder.instruction.BuilderInstruction22c
+import com.android.tools.smali.dexlib2.builder.instruction.BuilderInstruction21c
+import com.android.tools.smali.dexlib2.builder.instruction.BuilderInstruction51l
+import com.android.tools.smali.dexlib2.immutable.reference.ImmutableFieldReference
 
 private val COMPATIBILITY_ANDROID_FAKER = Compatibility(
     name = "Android Faker",
@@ -249,8 +252,16 @@ val androidFakerVipPatch = bytecodePatch(
         // getDex() → return empty byte[] (the UI app doesn't need the spoofing DEX)
         NativeGetDexFingerprint.methodOrNull?.let { method ->
             if (method.implementation != null) {
-                val getDexStub = "const/4 v0, 0x0\nnew-array v0, v0, [B\nreturn-object v0"
-                method.addInstructions(0, getDexStub)
+                // Prepend: const/4 v0, 0 ; new-array v0, v0, [B ; return-object v0
+                method.implementation!!.addInstruction(0,
+                    BuilderInstruction11x(Opcode.RETURN_OBJECT, 0))
+                method.implementation!!.addInstruction(0,
+                    BuilderInstruction22c(
+                        Opcode.NEW_ARRAY, 0, 0,
+                        ImmutableTypeReference("[B")
+                    ))
+                method.implementation!!.addInstruction(0,
+                    BuilderInstruction11n(Opcode.CONST_4, 0, 0))
             } else {
                 // Build: const/4 v0, 0x0 ; new-array v0, v0, [B ; return-object v0
                 val impl = MutableMethodImplementation(2)
@@ -294,8 +305,10 @@ val androidFakerVipPatch = bytecodePatch(
                                     // NOP both instructions
                                     val mutableClass = mutableClassDefBy(classDef)
                                     val mutableMethod = mutableClass.findMutableMethodOf(method)
-                                    mutableMethod.replaceInstruction(index, "nop")
-                                    mutableMethod.replaceInstruction(nextIdx, "nop")
+                                    mutableMethod.implementation!!.replaceInstruction(
+                                        index, BuilderInstruction10x(Opcode.NOP))
+                                    mutableMethod.implementation!!.replaceInstruction(
+                                        nextIdx, BuilderInstruction10x(Opcode.NOP))
                                 }
                             }
                         }
@@ -315,38 +328,41 @@ val androidFakerVipPatch = bytecodePatch(
         }
 
         AccountVipDueDateFingerprint.methodOrNull?.let { method ->
-            method.addInstructions(
-                0,
-                """
-                    const-wide v0, 0xF4624C00
-                    return-wide v0
-                """
-            )
+            // const-wide v0, 4102444800 ; return-wide v0
+            method.implementation!!.addInstruction(0,
+                BuilderInstruction11x(Opcode.RETURN_WIDE, 0))
+            method.implementation!!.addInstruction(0,
+                BuilderInstruction51l(Opcode.CONST_WIDE, 0, 4102444800L))
         }
 
         // ─── 5. HookState.isVipUser → Boolean.TRUE ──────────────────────
         val vipGetterObject = HookStateVipGetterFingerprint.methodOrNull
         if (vipGetterObject?.implementation != null) {
-            vipGetterObject.addInstructions(
-                0,
-                """
-                    sget-object v0, Ljava/lang/Boolean;->TRUE:Ljava/lang/Boolean;
-                    return-object v0
-                """
-            )
+            // sget-object v0, Ljava/lang/Boolean;->TRUE:Ljava/lang/Boolean; ; return-object v0
+            vipGetterObject.implementation!!.addInstruction(0,
+                BuilderInstruction11x(Opcode.RETURN_OBJECT, 0))
+            vipGetterObject.implementation!!.addInstruction(0,
+                BuilderInstruction21c(
+                    Opcode.SGET_OBJECT, 0,
+                    ImmutableFieldReference(
+                        "Ljava/lang/Boolean;", "TRUE", "Ljava/lang/Boolean;"
+                    )
+                ))
         } else if (HookStateVipGetterPrimitiveFingerprint.methodOrNull?.implementation != null) {
             HookStateVipGetterPrimitiveFingerprint.method.returnEarly(true)
         }
 
         // ─── 6. ProfileState.isVipUser → Boolean.TRUE ────────────────────
         ProfileStateVipGetterFingerprint.methodOrNull?.let { method ->
-            method.addInstructions(
-                0,
-                """
-                    sget-object v0, Ljava/lang/Boolean;->TRUE:Ljava/lang/Boolean;
-                    return-object v0
-                """
-            )
+            method.implementation!!.addInstruction(0,
+                BuilderInstruction11x(Opcode.RETURN_OBJECT, 0))
+            method.implementation!!.addInstruction(0,
+                BuilderInstruction21c(
+                    Opcode.SGET_OBJECT, 0,
+                    ImmutableFieldReference(
+                        "Ljava/lang/Boolean;", "TRUE", "Ljava/lang/Boolean;"
+                    )
+                ))
         }
 
         // ─── 7. UserInfo Parcelable: vipStatus → 1, dueDate → 2100 ──────
@@ -374,13 +390,10 @@ val androidFakerVipPatch = bytecodePatch(
                     method.parameters.isEmpty() &&
                     method.accessFlags and AccessFlags.PUBLIC.value != 0
                 ) {
-                    method.addInstructions(
-                        0,
-                        """
-                            const-wide v0, 0xF4624C00
-                            return-wide v0
-                        """
-                    )
+                    method.implementation!!.addInstruction(0,
+                        BuilderInstruction11x(Opcode.RETURN_WIDE, 0))
+                    method.implementation!!.addInstruction(0,
+                        BuilderInstruction51l(Opcode.CONST_WIDE, 0, 4102444800L))
                 }
             }
         }
@@ -406,11 +419,10 @@ val androidFakerVipPatch = bytecodePatch(
                 ) {
                     val mutableClass = mutableClassDefBy(classDef)
                     val mutableMethod = mutableClass.findMutableMethodOf(method)
-                    // Insert at index 0: const/4 p2, 0x1 (force isVipUser = true)
-                    mutableMethod.addInstructions(
-                        0,
-                        "const/4 p2, 0x1"
-                    )
+                    // p2 is the boolean param (p0=this, p1=HookConfig, p2=boolean)
+                    val boolReg = mutableMethod.implementation!!.registerCount - 1
+                    mutableMethod.implementation!!.addInstruction(0,
+                        BuilderInstruction11n(Opcode.CONST_4, boolReg, 1))
                 }
 
                 // ApplyModel: HookConfig method(HookConfig, ?, String, boolean)
@@ -422,11 +434,10 @@ val androidFakerVipPatch = bytecodePatch(
                 ) {
                     val mutableClass = mutableClassDefBy(classDef)
                     val mutableMethod = mutableClass.findMutableMethodOf(method)
-                    // Insert at index 0: const/4 p4, 0x1 (force isVipUser = true)
-                    mutableMethod.addInstructions(
-                        0,
-                        "const/4 p4, 0x1"
-                    )
+                    // Last param is the boolean (force to true)
+                    val boolReg = mutableMethod.implementation!!.registerCount - 1
+                    mutableMethod.implementation!!.addInstruction(0,
+                        BuilderInstruction11n(Opcode.CONST_4, boolReg, 1))
                 }
             }
         }
