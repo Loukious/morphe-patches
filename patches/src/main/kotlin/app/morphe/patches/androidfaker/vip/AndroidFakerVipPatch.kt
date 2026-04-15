@@ -274,29 +274,33 @@ val androidFakerVipPatch = bytecodePatch(
             replaceNativeMethod(method, impl)
         }
 
-        // ─── 2. Nuke System.loadLibrary() in AndroidFaker loader path ──────
-        // The library name "af_native" is computed at runtime via nz5.m17470a()
-        // (XOR string decryptor), so there's no const-string "af_native" to match.
-        // Critical call-site is ModuleMain.onPackageLoaded, so we must scan all methods,
-        // not only <clinit>. Limit scope to known loader classes.
-        // The native library's JNI_OnLoad does signature verification which will
-        // crash on a re-signed APK, so we must prevent it from loading entirely.
+        // ─── 2. Nuke dynamic System.loadLibrary/System.load for af_native ────
+        // The target library name is computed at runtime (e.g. nz5.m17470a()),
+        // so there's no stable const-string to match. Catch the dynamic pattern:
+        // invoke-static decryptor -> move-result-object vX -> System.load*(vX).
+        // This avoids breaking common literal loads (mmkv, perfetto, etc.).
         classDefForEach { classDef ->
-            val inLoaderPath = classDef.type == "Lcom/android1500/androidfaker/data/loader/StartupAgent;" ||
-                    classDef.type == "Lcom/android1500/androidfaker/data/loader/ModuleMain;"
-            if (!inLoaderPath) return@classDefForEach
-
             classDef.methods.forEach methodLoop@{ method ->
                 val impl = method.implementation ?: return@methodLoop
                 val instructions = impl.instructions.toList()
 
                 val indicesToNop = mutableListOf<Int>()
                 instructions.forEachIndexed { index, insn ->
-                    if (insn.opcode != Opcode.INVOKE_STATIC && insn.opcode != Opcode.INVOKE_STATIC_RANGE)
-                        return@forEachIndexed
                     val ref = (insn as? com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction)
                         ?.reference as? MethodReference ?: return@forEachIndexed
-                    if (ref.name == "loadLibrary" && ref.definingClass == "Ljava/lang/System;") {
+
+                    val isSystemLoad = (insn.opcode == Opcode.INVOKE_STATIC || insn.opcode == Opcode.INVOKE_STATIC_RANGE) &&
+                            ref.definingClass == "Ljava/lang/System;" &&
+                            (ref.name == "loadLibrary" || ref.name == "load")
+                    val isRuntimeLoad = (insn.opcode == Opcode.INVOKE_VIRTUAL || insn.opcode == Opcode.INVOKE_VIRTUAL_RANGE) &&
+                            ref.definingClass == "Ljava/lang/Runtime;" &&
+                            (ref.name == "loadLibrary" || ref.name == "load")
+                    if (!isSystemLoad && !isRuntimeLoad) return@forEachIndexed
+
+                    // Dynamic library-name loads use move-result-object right before load* calls.
+                    // Literal calls are usually const-string + invoke-static and are ignored.
+                    val prevOpcode = instructions.getOrNull(index - 1)?.opcode
+                    if (prevOpcode == Opcode.MOVE_RESULT_OBJECT) {
                         indicesToNop.add(index)
                     }
                 }
