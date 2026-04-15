@@ -14,7 +14,6 @@ import com.android.tools.smali.dexlib2.AccessFlags
 import com.android.tools.smali.dexlib2.Opcode
 import com.android.tools.smali.dexlib2.builder.MutableMethodImplementation
 import com.android.tools.smali.dexlib2.iface.ClassDef
-import com.android.tools.smali.dexlib2.iface.instruction.formats.Instruction21c
 import com.android.tools.smali.dexlib2.iface.instruction.formats.Instruction35c
 import com.android.tools.smali.dexlib2.iface.reference.MethodReference
 import com.android.tools.smali.dexlib2.iface.reference.StringReference
@@ -281,38 +280,61 @@ val androidFakerVipPatch = bytecodePatch(
         // ─── 2. Nuke loadLibrary("af_native") calls ─────────────────────
         // Remove all invocations of System.loadLibrary("af_native") across
         // the entire APK so the hostile native library never loads.
+        // Pattern: const-string[/jumbo] vX, "af_native" ... invoke-static {vX}, System.loadLibrary
+        // The two instructions may NOT be adjacent (try-catch, moves, etc).
         classDefForEach { classDef ->
-            classDef.methods.forEach { method ->
-                val impl = method.implementation ?: return@forEach
+            classDef.methods.forEach methodLoop@{ method ->
+                val impl = method.implementation ?: return@methodLoop
                 val instructions = impl.instructions.toList()
 
-                // Look for const-string "af_native" followed by invoke-static System.loadLibrary
-                instructions.forEachIndexed { index, instruction ->
-                    if (instruction.opcode == Opcode.CONST_STRING &&
-                        instruction is Instruction21c &&
-                        (instruction.reference as? StringReference)?.string == "af_native"
-                    ) {
-                        // Check the next instruction is invoke-static {vX}, System.loadLibrary
-                        val nextIdx = index + 1
-                        if (nextIdx < instructions.size) {
-                            val next = instructions[nextIdx]
-                            if (next.opcode == Opcode.INVOKE_STATIC &&
-                                next is Instruction35c
-                            ) {
-                                val ref = next.reference as? MethodReference
-                                if (ref?.name == "loadLibrary" &&
-                                    ref.definingClass == "Ljava/lang/System;"
-                                ) {
-                                    // NOP both instructions
-                                    val mutableClass = mutableClassDefBy(classDef)
-                                    val mutableMethod = mutableClass.findMutableMethodOf(method)
-                                    mutableMethod.implementation!!.replaceInstruction(
-                                        index, BuilderInstruction10x(Opcode.NOP))
-                                    mutableMethod.implementation!!.replaceInstruction(
-                                        nextIdx, BuilderInstruction10x(Opcode.NOP))
-                                }
-                            }
+                // Pass 1: find indices of const-string "af_native" and the register it targets
+                val afNativeLoads = mutableMapOf<Int, Int>() // index → register
+                instructions.forEachIndexed { index, insn ->
+                    if (insn.opcode == Opcode.CONST_STRING || insn.opcode == Opcode.CONST_STRING_JUMBO) {
+                        val ref = (insn as? com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction)
+                            ?.reference as? StringReference
+                        if (ref?.string == "af_native") {
+                            val reg = (insn as? com.android.tools.smali.dexlib2.iface.instruction.OneRegisterInstruction)
+                                ?.registerA ?: -1
+                            if (reg >= 0) afNativeLoads[index] = reg
                         }
+                    }
+                }
+                if (afNativeLoads.isEmpty()) return@methodLoop
+
+                // Pass 2: find invoke-static System.loadLibrary that uses one of those registers
+                val indicesToNop = mutableListOf<Pair<Int, Int>>() // pairs of (constIdx, invokeIdx)
+                instructions.forEachIndexed { index, insn ->
+                    if (insn.opcode != Opcode.INVOKE_STATIC && insn.opcode != Opcode.INVOKE_STATIC_RANGE)
+                        return@forEachIndexed
+                    val ref = (insn as? com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction)
+                        ?.reference as? MethodReference ?: return@forEachIndexed
+                    if (ref.name != "loadLibrary" || ref.definingClass != "Ljava/lang/System;")
+                        return@forEachIndexed
+
+                    // Check if any const-string "af_native" loaded the register used here
+                    val invokeReg = when (insn) {
+                        is Instruction35c -> insn.registerC  // first argument register
+                        is com.android.tools.smali.dexlib2.iface.instruction.formats.Instruction3rc -> insn.startRegister
+                        else -> -1
+                    }
+                    // Find the nearest preceding const-string that set this register
+                    for ((constIdx, constReg) in afNativeLoads) {
+                        if (constIdx < index && constReg == invokeReg) {
+                            indicesToNop.add(constIdx to index)
+                            break
+                        }
+                    }
+                }
+
+                if (indicesToNop.isNotEmpty()) {
+                    val mutableClass = mutableClassDefBy(classDef)
+                    val mutableMethod = mutableClass.findMutableMethodOf(method)
+                    indicesToNop.forEach { (constIdx, invokeIdx) ->
+                        mutableMethod.implementation!!.replaceInstruction(
+                            constIdx, BuilderInstruction10x(Opcode.NOP))
+                        mutableMethod.implementation!!.replaceInstruction(
+                            invokeIdx, BuilderInstruction10x(Opcode.NOP))
                     }
                 }
             }
