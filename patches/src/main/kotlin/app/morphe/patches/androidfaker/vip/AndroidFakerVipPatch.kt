@@ -202,14 +202,12 @@ val androidFakerVipPatch = bytecodePatch(
     compatibleWith(COMPATIBILITY_ANDROID_FAKER)
 
     execute {
-        // ─── Helper: replace a native method with a Java stub ────────────
-        fun replaceNativeMethodWithStub(
+        // ─── Helper: replace a native method with a pre-built impl ───────
+        fun replaceNativeMethod(
             method: com.android.tools.smali.dexlib2.iface.Method,
-            instructions: String,
-            registerCount: Int = 1
+            impl: MutableMethodImplementation
         ) {
             val mutableClass = mutableClassDefBy(method.definingClass)
-            val stubInstructions = instructions.trimIndent().trim()
 
             val replacementMethod = ImmutableMethod(
                 method.definingClass,
@@ -219,10 +217,8 @@ val androidFakerVipPatch = bytecodePatch(
                 method.accessFlags and AccessFlags.NATIVE.value.inv() and AccessFlags.ABSTRACT.value.inv(),
                 method.annotations,
                 method.hiddenApiRestrictions,
-                MutableMethodImplementation(registerCount)
-            ).toMutable().apply {
-                addInstructions(0, stubInstructions)
-            }
+                impl
+            ).toMutable()
 
             mutableClass.methods.removeAll { candidate ->
                 candidate.name == method.name &&
@@ -238,21 +234,31 @@ val androidFakerVipPatch = bytecodePatch(
             if (method.implementation != null) {
                 method.returnEarly(true)
             } else {
-                replaceNativeMethodWithStub(
-                    method,
-                    "const/4 v0, 0x1\nreturn v0"
-                )
+                // Build: const/4 v0, 0x1 ; return v0
+                val impl = MutableMethodImplementation(2)
+                impl.addInstruction(BuilderInstruction11n(Opcode.CONST_4, 0, 1))
+                impl.addInstruction(BuilderInstruction11x(Opcode.RETURN, 0))
+                replaceNativeMethod(method, impl)
             }
         }
 
         // getDex() → return empty byte[] (the UI app doesn't need the spoofing DEX)
         NativeGetDexFingerprint.methodOrNull?.let { method ->
-            val getDexStub = "const/4 v0, 0x0\nnew-array v0, v0, [B\nreturn-object v0"
-
             if (method.implementation != null) {
+                val getDexStub = "const/4 v0, 0x0\nnew-array v0, v0, [B\nreturn-object v0"
                 method.addInstructions(0, getDexStub)
             } else {
-                replaceNativeMethodWithStub(method, getDexStub)
+                // Build: const/4 v0, 0x0 ; new-array v0, v0, [B ; return-object v0
+                val impl = MutableMethodImplementation(2)
+                impl.addInstruction(BuilderInstruction11n(Opcode.CONST_4, 0, 0))
+                impl.addInstruction(
+                    BuilderInstruction22c(
+                        Opcode.NEW_ARRAY, 0, 0,
+                        ImmutableTypeReference("[B")
+                    )
+                )
+                impl.addInstruction(BuilderInstruction11x(Opcode.RETURN_OBJECT, 0))
+                replaceNativeMethod(method, impl)
             }
         }
 
