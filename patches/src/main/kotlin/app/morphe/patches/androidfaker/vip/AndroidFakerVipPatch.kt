@@ -15,19 +15,12 @@ import com.android.tools.smali.dexlib2.AccessFlags
 import com.android.tools.smali.dexlib2.Opcode
 import com.android.tools.smali.dexlib2.builder.MutableMethodImplementation
 import com.android.tools.smali.dexlib2.iface.ClassDef
-import com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction
-import com.android.tools.smali.dexlib2.iface.reference.MethodReference
-import com.android.tools.smali.dexlib2.iface.reference.StringReference
 import com.android.tools.smali.dexlib2.immutable.ImmutableMethod
-import com.android.tools.smali.dexlib2.builder.instruction.BuilderInstruction10x
-import com.android.tools.smali.dexlib2.builder.instruction.BuilderInstruction11n
 import com.android.tools.smali.dexlib2.builder.instruction.BuilderInstruction11x
-import com.android.tools.smali.dexlib2.builder.instruction.BuilderInstruction35c
 import com.android.tools.smali.dexlib2.builder.instruction.BuilderInstruction21s
 import com.android.tools.smali.dexlib2.builder.instruction.BuilderInstruction21c
 import com.android.tools.smali.dexlib2.builder.instruction.BuilderInstruction51l
 import com.android.tools.smali.dexlib2.immutable.reference.ImmutableFieldReference
-import com.android.tools.smali.dexlib2.immutable.reference.ImmutableMethodReference
 
 private val COMPATIBILITY_ANDROID_FAKER = Compatibility(
     name = "Android Faker",
@@ -65,22 +58,6 @@ private val androidFakerNativeKillSwitchPatch = hexPatch(ignoreMissingTargetFile
         "00 48 3B 44 24 10 75 05 90 90 90 90 90 E8 9E 9E 00 00" inFile
         "lib/x86_64/libaf_native.so"
 })
-
-// ─── Native Anti-Tamper ─────────────────────────────────────────────────────
-internal object NativeDoInitFingerprint : Fingerprint(
-    definingClass = "Lcom/androidfaker/core/util/Native;",
-    name = "doInit",
-    returnType = "Z",
-    parameters = listOf("Ljava/lang/String;"),
-    custom = { method, _ -> method.parameters.size == 1 }
-)
-
-internal object NativeGetDexFingerprint : Fingerprint(
-    definingClass = "Lcom/androidfaker/core/util/Native;",
-    name = "getDex",
-    returnType = "[B",
-    parameters = listOf()
-)
 
 // ─── Core VIP Check ─────────────────────────────────────────────────────────
 private fun isVipGateClass(classDef: ClassDef): Boolean {
@@ -213,15 +190,14 @@ internal object SignatureVerifierFingerprint : Fingerprint(
 
 val androidFakerVipPatch = bytecodePatch(
     name = "Android Faker VIP unlock",
-    description = "Bypasses native tamper detection, forces VIP state everywhere, " +
-            "and neuters all loadLibrary(\"af_native\") calls to prevent the anti-tamper kill threads.",
+    description = "Patches native anti-tamper in libaf_native.so while keeping native runtime " +
+            "behavior intact, and forces VIP state everywhere.",
 ) {
     dependsOn(androidFakerNativeKillSwitchPatch)
     compatibleWith(COMPATIBILITY_ANDROID_FAKER)
-    extendWith("extensions/androidfaker.mpe")
 
     execute {
-        // ─── Helper: replace a native method with a pre-built impl ───────
+        // ─── Helper: replace a method with a pre-built impl ──────────────
         fun replaceNativeMethod(
             method: com.android.tools.smali.dexlib2.iface.Method,
             impl: MutableMethodImplementation
@@ -258,120 +234,12 @@ val androidFakerVipPatch = bytecodePatch(
             return impl
         }
 
-        // ─── 1. Native Anti-Tamper ───────────────────────────────────────
-        // doInit(String) → always return true
-        NativeDoInitFingerprint.methodOrNull?.let { method ->
-            if (method.implementation != null) {
-                method.returnEarly(true)
-            } else {
-                val impl = MutableMethodImplementation(2)
-                impl.addInstruction(BuilderInstruction11n(Opcode.CONST_4, 0, 1))
-                impl.addInstruction(BuilderInstruction11x(Opcode.RETURN, 0))
-                replaceNativeMethod(method, impl)
-            }
-        }
-
-        // getDex() → delegate to extension runtime extractor
-        NativeGetDexFingerprint.methodOrNull?.let { method ->
-            val impl = MutableMethodImplementation(2)
-            impl.addInstruction(
-                BuilderInstruction35c(
-                    Opcode.INVOKE_STATIC,
-                    0, 0, 0, 0, 0, 0,
-                    ImmutableMethodReference(
-                        "Lapp/morphe/extension/androidfaker/PatchedDexProvider;",
-                        "get",
-                        emptyList(),
-                        "[B"
-                    )
-                )
-            )
-            impl.addInstruction(BuilderInstruction11x(Opcode.MOVE_RESULT_OBJECT, 0))
-            impl.addInstruction(BuilderInstruction11x(Opcode.RETURN_OBJECT, 0))
-            replaceNativeMethod(method, impl)
-        }
-
-        // ─── 2. Nuke ALL System.loadLibrary / System.load for af_native ──
-        //
-        // The .so spawns 7 kill threads in doInit() — these scan for tampering
-        // and abort the process. We must prevent the library from loading at all.
-        //
-        // TWO patterns to catch:
-        //   A) Dynamic (obfuscated name): decryptor() → move-result-object vX
-        //                                 → System.loadLibrary(vX)
-        //   B) Literal:                   const-string vX, "af_native"
-        //                                 → System.loadLibrary(vX)
-        //
-        // Pattern A: NOP only the loadLibrary call (the decryptor result is
-        //            likely used only here, so leaving its call is safe, but
-        //            NOP'ing is simpler and the unused result is harmless).
-        // Pattern B: NOP only the loadLibrary call; the const-string is left
-        //            as a dead assignment — the verifier is fine with that.
-        //
-        // We intentionally leave literal loads of other libraries (mmkv,
-        // dexkit, perfetto, etc.) untouched.
-        classDefForEach { classDef ->
-            classDef.methods.forEach methodLoop@{ method ->
-                val impl = method.implementation ?: return@methodLoop
-                val instructions = impl.instructions.toList()
-
-                val indicesToNop = mutableListOf<Int>()
-
-                instructions.forEachIndexed { index, insn ->
-                    // Must be a System.loadLibrary or System.load call
-                    val ref = (insn as? ReferenceInstruction)
-                        ?.reference as? MethodReference ?: return@forEachIndexed
-
-                    val isSystemLoad =
-                        (insn.opcode == Opcode.INVOKE_STATIC || insn.opcode == Opcode.INVOKE_STATIC_RANGE) &&
-                                ref.definingClass == "Ljava/lang/System;" &&
-                                (ref.name == "loadLibrary" || ref.name == "load")
-                    val isRuntimeLoad =
-                        (insn.opcode == Opcode.INVOKE_VIRTUAL || insn.opcode == Opcode.INVOKE_VIRTUAL_RANGE) &&
-                                ref.definingClass == "Ljava/lang/Runtime;" &&
-                                (ref.name == "loadLibrary" || ref.name == "load")
-
-                    if (!isSystemLoad && !isRuntimeLoad) return@forEachIndexed
-
-                    val prevInsn = instructions.getOrNull(index - 1)
-                    val prevOpcode = prevInsn?.opcode
-
-                    // Pattern A: name computed at runtime
-                    val isDynamic = prevOpcode == Opcode.MOVE_RESULT_OBJECT
-
-                    // Pattern B: literal "af_native"
-                    val isAfNativeLiteral = (prevOpcode == Opcode.CONST_STRING ||
-                            prevOpcode == Opcode.CONST_STRING_JUMBO) &&
-                            ((prevInsn as? ReferenceInstruction)
-                                ?.reference as? StringReference)
-                                ?.string == "af_native"
-
-                    if (isDynamic || isAfNativeLiteral) {
-                        // NOP the loadLibrary call itself.
-                        // Leave the preceding instruction — a dead register write
-                        // is harmless and keeps the instruction list indices stable.
-                        indicesToNop.add(index)
-                    }
-                }
-
-                if (indicesToNop.isNotEmpty()) {
-                    val mutableClass = mutableClassDefBy(classDef)
-                    val mutableMethod = mutableClass.findMutableMethodOf(method)
-                    indicesToNop.forEach { idx ->
-                        mutableMethod.implementation!!.replaceInstruction(
-                            idx, BuilderInstruction10x(Opcode.NOP)
-                        )
-                    }
-                }
-            }
-        }
-
-        // ─── 3. Core VIP Check: ms6.b() → true ──────────────────────────
+        // ─── 1. Core VIP Check: ms6.b() → true ──────────────────────────
         CoreIsVipFingerprint.methodOrNull?.let { method ->
             method.returnEarly(true)
         }
 
-        // ─── 4. Account Data: vipStatus → 1, vipDueDate → far future ────
+        // ─── 2. Account Data: vipStatus → 1, vipDueDate → far future ────
         AccountVipStatusFingerprint.methodOrNull?.let { method ->
             method.returnEarly(1)
         }
@@ -380,7 +248,7 @@ val androidFakerVipPatch = bytecodePatch(
             replaceNativeMethod(method, buildLongReturnImpl(method, 4102444800L))
         }
 
-        // ─── 5. HookState.isVipUser → Boolean.TRUE ──────────────────────
+        // ─── 3. HookState.isVipUser → Boolean.TRUE ──────────────────────
         val vipGetterObject = HookStateVipGetterFingerprint.methodOrNull
         if (vipGetterObject?.implementation != null) {
             // Insert in reverse: SGET_OBJECT v0, Boolean.TRUE ; RETURN_OBJECT v0
@@ -395,7 +263,7 @@ val androidFakerVipPatch = bytecodePatch(
             HookStateVipGetterPrimitiveFingerprint.method.returnEarly(true)
         }
 
-        // ─── 6. ProfileState.isVipUser → Boolean.TRUE ────────────────────
+        // ─── 4. ProfileState.isVipUser → Boolean.TRUE ────────────────────
         ProfileStateVipGetterFingerprint.methodOrNull?.let { method ->
             method.implementation!!.addInstruction(0,
                 BuilderInstruction11x(Opcode.RETURN_OBJECT, 0))
@@ -406,7 +274,7 @@ val androidFakerVipPatch = bytecodePatch(
                 ))
         }
 
-        // ─── 7. UserInfo Parcelable: vipStatus → 1, dueDate → 2100 ──────
+        // ─── 5. UserInfo Parcelable: vipStatus → 1, dueDate → 2100 ──────
         classDefForEach { classDef ->
             if (!isUserInfoClass(classDef)) return@classDefForEach
 
@@ -435,12 +303,12 @@ val androidFakerVipPatch = bytecodePatch(
             }
         }
 
-        // ─── 8. Signature Bypass: ep5.d(Context) → true ─────────────────
+        // ─── 6. Signature Bypass: ep5.d(Context) → true ─────────────────
         SignatureVerifierFingerprint.methodOrNull?.let { method ->
             method.returnEarly(true)
         }
 
-        // ─── 9. Randomize + ApplyModel VIP params ────────────────────────
+        // ─── 7. Randomize + ApplyModel VIP params ────────────────────────
         val hookConfigType = "Lcom/androidfaker/data/repository/util/HookConfig;"
         classDefForEach { classDef ->
             classDef.methods.forEach { method ->
