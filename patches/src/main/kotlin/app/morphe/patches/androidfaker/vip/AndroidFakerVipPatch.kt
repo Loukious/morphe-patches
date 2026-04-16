@@ -19,7 +19,6 @@ import com.android.tools.smali.dexlib2.iface.instruction.OneRegisterInstruction
 import com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction
 import com.android.tools.smali.dexlib2.iface.reference.MethodReference
 import com.android.tools.smali.dexlib2.immutable.ImmutableMethod
-import com.android.tools.smali.dexlib2.builder.instruction.BuilderInstruction10x
 import com.android.tools.smali.dexlib2.builder.instruction.BuilderInstruction11x
 import com.android.tools.smali.dexlib2.builder.instruction.BuilderInstruction21s
 import com.android.tools.smali.dexlib2.builder.instruction.BuilderInstruction21c
@@ -245,7 +244,7 @@ val androidFakerVipPatch = bytecodePatch(
         // ─── 0. JNI-safe native pipeline bridge ──────────────────────────
         // Keep Native.doInit/getDex native so JNI_OnLoad RegisterNatives succeeds.
         // Instead, rewrite Java callsites:
-        // - Native.doInit(String): force move-result register to const/4 1
+        // - Native.doInit(String): keep invoke for native side-effects, force move-result to const/4 1
         // - Native.getDex(): route invoke to PatchedDexProvider.get()
         classDefForEach { classDef ->
             val mutableClass = mutableClassDefBy(classDef)
@@ -254,14 +253,19 @@ val androidFakerVipPatch = bytecodePatch(
                 val impl = method.implementation ?: return@methodLoop
                 val instructions = impl.instructions.toList()
 
-                var mutableMethod = mutableClass.findMutableMethodOf(method)
+                val mutableMethod = mutableClass.findMutableMethodOf(method)
 
                 instructions.forEachIndexed { index, insn ->
                     val ref = (insn as? ReferenceInstruction)
                         ?.reference as? MethodReference ?: return@forEachIndexed
 
                     val isNativeDoInitCall =
-                        (insn.opcode == Opcode.INVOKE_STATIC || insn.opcode == Opcode.INVOKE_STATIC_RANGE) &&
+                        (
+                            insn.opcode == Opcode.INVOKE_VIRTUAL ||
+                                insn.opcode == Opcode.INVOKE_VIRTUAL_RANGE ||
+                                insn.opcode == Opcode.INVOKE_STATIC ||
+                                insn.opcode == Opcode.INVOKE_STATIC_RANGE
+                            ) &&
                                 ref.definingClass == "Lcom/androidfaker/core/util/Native;" &&
                                 ref.name == "doInit" &&
                                 ref.returnType == "Z" &&
@@ -269,11 +273,6 @@ val androidFakerVipPatch = bytecodePatch(
                                 ref.parameterTypes[0] == "Ljava/lang/String;"
 
                     if (isNativeDoInitCall) {
-                        mutableMethod.implementation!!.replaceInstruction(
-                            index,
-                            BuilderInstruction10x(Opcode.NOP)
-                        )
-
                         val nextInsn = instructions.getOrNull(index + 1)
                         if (nextInsn?.opcode == Opcode.MOVE_RESULT) {
                             val resultRegister = (nextInsn as OneRegisterInstruction).registerA
@@ -286,7 +285,12 @@ val androidFakerVipPatch = bytecodePatch(
                     }
 
                     val isNativeGetDexCall =
-                        (insn.opcode == Opcode.INVOKE_STATIC || insn.opcode == Opcode.INVOKE_STATIC_RANGE) &&
+                        (
+                            insn.opcode == Opcode.INVOKE_VIRTUAL ||
+                                insn.opcode == Opcode.INVOKE_VIRTUAL_RANGE ||
+                                insn.opcode == Opcode.INVOKE_STATIC ||
+                                insn.opcode == Opcode.INVOKE_STATIC_RANGE
+                            ) &&
                                 ref.definingClass == "Lcom/androidfaker/core/util/Native;" &&
                                 ref.name == "getDex" &&
                                 ref.returnType == "[B" &&
