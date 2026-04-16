@@ -46,11 +46,11 @@ private val COMPATIBILITY_ANDROID_FAKER = Compatibility(
 )
 
 // ─── Native Binary Kill-Switch (multi-arch) ─────────────────────────────────
-// Directly NOP verified abort callsites in libaf_native.so so the abort-trigger
+// Patch verified abort-trigger blocks in libaf_native.so so the native kill
 // path cannot execute even if the library still gets loaded.
 private val androidFakerNativeKillSwitchPatch = hexPatch(ignoreMissingTargetFiles = true, block = {
     "1F 01 09 EB 41 00 00 54 46 2E 00 94 BD 2D 00 94 FF C3 00 D1" asPatternTo
-            "1F 01 09 EB 41 00 00 54 1F 20 03 D5 BD 2D 00 94 FF C3 00 D1" inFile
+            "1F 01 09 EB 41 00 00 54 1C 00 00 14 BD 2D 00 94 FF C3 00 D1" inFile
             "lib/arm64-v8a/libaf_native.so"
 
     // x86 (verified unique in current libaf_native.so)
