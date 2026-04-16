@@ -24,7 +24,6 @@ import com.android.tools.smali.dexlib2.builder.instruction.BuilderInstruction21s
 import com.android.tools.smali.dexlib2.builder.instruction.BuilderInstruction21c
 import com.android.tools.smali.dexlib2.builder.instruction.BuilderInstruction51l
 import com.android.tools.smali.dexlib2.immutable.reference.ImmutableFieldReference
-import com.android.tools.smali.dexlib2.builder.instruction.BuilderInstruction11n
 import com.android.tools.smali.dexlib2.builder.instruction.BuilderInstruction35c
 import com.android.tools.smali.dexlib2.immutable.reference.ImmutableMethodReference
 
@@ -244,8 +243,46 @@ val androidFakerVipPatch = bytecodePatch(
         // ─── 0. JNI-safe native pipeline bridge ──────────────────────────
         // Keep Native.doInit/getDex native so JNI_OnLoad RegisterNatives succeeds.
         // Instead, rewrite Java callsites:
-        // - Native.doInit(String): keep invoke for native side-effects, force move-result to const/4 1
+        // - Native.doInit(String): keep invoke for native side-effects, force move-result to 1
         // - Native.getDex(): route invoke to PatchedDexProvider.get()
+        val doInitNamesByClass = mutableMapOf<String, Set<String>>()
+        val getDexNamesByClass = mutableMapOf<String, Set<String>>()
+
+        classDefForEach { classDef ->
+            val doInitLikeNames = classDef.methods
+                .filter {
+                    it.accessFlags and AccessFlags.NATIVE.value != 0 &&
+                            it.returnType == "Z" &&
+                            it.parameterTypes.size == 1 &&
+                            it.parameterTypes[0] == "Ljava/lang/String;"
+                }
+                .map { it.name }
+                .toSet()
+
+            val getDexLikeNames = classDef.methods
+                .filter {
+                    it.accessFlags and AccessFlags.NATIVE.value != 0 &&
+                            it.returnType == "[B" &&
+                            it.parameterTypes.isEmpty()
+                }
+                .map { it.name }
+                .toSet()
+
+            if (doInitLikeNames.isNotEmpty()) {
+                doInitNamesByClass[classDef.type] = doInitLikeNames
+            }
+            if (getDexLikeNames.isNotEmpty()) {
+                getDexNamesByClass[classDef.type] = getDexLikeNames
+            }
+        }
+
+        if (!doInitNamesByClass.containsKey("Lcom/androidfaker/core/util/Native;")) {
+            doInitNamesByClass["Lcom/androidfaker/core/util/Native;"] = setOf("doInit")
+        }
+        if (!getDexNamesByClass.containsKey("Lcom/androidfaker/core/util/Native;")) {
+            getDexNamesByClass["Lcom/androidfaker/core/util/Native;"] = setOf("getDex")
+        }
+
         classDefForEach { classDef ->
             val mutableClass = mutableClassDefBy(classDef)
 
@@ -259,6 +296,9 @@ val androidFakerVipPatch = bytecodePatch(
                     val ref = (insn as? ReferenceInstruction)
                         ?.reference as? MethodReference ?: return@forEachIndexed
 
+                    val targetDoInitNames = doInitNamesByClass[ref.definingClass] ?: emptySet()
+                    val targetGetDexNames = getDexNamesByClass[ref.definingClass] ?: emptySet()
+
                     val isNativeDoInitCall =
                         (
                             insn.opcode == Opcode.INVOKE_VIRTUAL ||
@@ -266,8 +306,7 @@ val androidFakerVipPatch = bytecodePatch(
                                 insn.opcode == Opcode.INVOKE_STATIC ||
                                 insn.opcode == Opcode.INVOKE_STATIC_RANGE
                             ) &&
-                                ref.definingClass == "Lcom/androidfaker/core/util/Native;" &&
-                                ref.name == "doInit" &&
+                                targetDoInitNames.contains(ref.name) &&
                                 ref.returnType == "Z" &&
                                 ref.parameterTypes.size == 1 &&
                                 ref.parameterTypes[0] == "Ljava/lang/String;"
@@ -278,7 +317,7 @@ val androidFakerVipPatch = bytecodePatch(
                             val resultRegister = (nextInsn as OneRegisterInstruction).registerA
                             mutableMethod.implementation!!.replaceInstruction(
                                 index + 1,
-                                BuilderInstruction11n(Opcode.CONST_4, resultRegister, 1)
+                                BuilderInstruction21s(Opcode.CONST_16, resultRegister, 1)
                             )
                         }
                         return@forEachIndexed
@@ -291,8 +330,7 @@ val androidFakerVipPatch = bytecodePatch(
                                 insn.opcode == Opcode.INVOKE_STATIC ||
                                 insn.opcode == Opcode.INVOKE_STATIC_RANGE
                             ) &&
-                                ref.definingClass == "Lcom/androidfaker/core/util/Native;" &&
-                                ref.name == "getDex" &&
+                                targetGetDexNames.contains(ref.name) &&
                                 ref.returnType == "[B" &&
                                 ref.parameterTypes.isEmpty()
 
