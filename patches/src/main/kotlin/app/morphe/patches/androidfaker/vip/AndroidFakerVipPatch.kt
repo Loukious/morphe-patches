@@ -224,16 +224,15 @@ val androidFakerVipPatch = bytecodePatch(
             mutableClass.methods.add(replacementMethod)
         }
 
-        // ─── Helper: ensure wide instructions have enough registers ──────
-        // CONST_WIDE needs v0+v1 (2 local registers). A simple getter often
-        // only has p0 (this) as registerCount=1, so we bump to 3:
-        //   v0, v1 = wide locals; v2 = p0 (this)
-        fun ensureWideRegisters(impl: MutableMethodImplementation) {
-            if (impl.registerCount < 2) {
-                // registerCount = locals + params. We need at least 2 locals.
-                // Add 2 to make room for the wide pair, keeping params at end.
-                impl.registerCount = impl.registerCount + 2
-            }
+        // ─── Helper: create a verifier-safe long-return implementation ─────
+        // CONST_WIDE uses two registers. Some tiny getters only expose one
+        // register (p0), so we replace method bodies with registerCount >= 3.
+        fun buildLongReturnImpl(method: com.android.tools.smali.dexlib2.iface.Method, value: Long): MutableMethodImplementation {
+            val originalRegisterCount = method.implementation?.registerCount ?: 0
+            val impl = MutableMethodImplementation(maxOf(3, originalRegisterCount))
+            impl.addInstruction(BuilderInstruction51l(Opcode.CONST_WIDE, 0, value))
+            impl.addInstruction(BuilderInstruction11x(Opcode.RETURN_WIDE, 0))
+            return impl
         }
 
         // ─── 1. Native Anti-Tamper ───────────────────────────────────────
@@ -355,14 +354,7 @@ val androidFakerVipPatch = bytecodePatch(
         }
 
         AccountVipDueDateFingerprint.methodOrNull?.let { method ->
-            val impl = method.implementation!!
-            // BUG FIX: CONST_WIDE occupies two consecutive registers (vN, vN+1).
-            // A plain getter with only `this` has registerCount=1 (p0=v0).
-            // Bumping to 3 gives v0+v1 as locals and v2=p0, satisfying the verifier.
-            ensureWideRegisters(impl)
-            // Insert in reverse order so final order is: CONST_WIDE v0 ; RETURN_WIDE v0
-            impl.addInstruction(0, BuilderInstruction11x(Opcode.RETURN_WIDE, 0))
-            impl.addInstruction(0, BuilderInstruction51l(Opcode.CONST_WIDE, 0, 4102444800L))
+            replaceNativeMethod(method, buildLongReturnImpl(method, 4102444800L))
         }
 
         // ─── 5. HookState.isVipUser → Boolean.TRUE ──────────────────────
@@ -397,7 +389,7 @@ val androidFakerVipPatch = bytecodePatch(
 
             val mutableClass = mutableClassDefBy(classDef)
 
-            mutableClass.methods.forEach { method ->
+            mutableClass.methods.toList().forEach { method ->
                 if (method.implementation == null) return@forEach
 
                 // int getter (not describeContents/hashCode) → return 1
@@ -411,17 +403,11 @@ val androidFakerVipPatch = bytecodePatch(
                 }
 
                 // long getter → return far future epoch
-                // BUG FIX: ensure 2 local registers before inserting CONST_WIDE
                 if (method.returnType == "J" &&
                     method.parameters.isEmpty() &&
                     method.accessFlags and AccessFlags.PUBLIC.value != 0
                 ) {
-                    ensureWideRegisters(method.implementation!!)
-                    // Insert in reverse: CONST_WIDE v0 ; RETURN_WIDE v0
-                    method.implementation!!.addInstruction(0,
-                        BuilderInstruction11x(Opcode.RETURN_WIDE, 0))
-                    method.implementation!!.addInstruction(0,
-                        BuilderInstruction51l(Opcode.CONST_WIDE, 0, 4102444800L))
+                    replaceNativeMethod(method, buildLongReturnImpl(method, 4102444800L))
                 }
             }
         }
