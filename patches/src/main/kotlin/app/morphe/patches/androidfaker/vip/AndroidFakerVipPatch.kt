@@ -50,19 +50,19 @@ private val COMPATIBILITY_ANDROID_FAKER = Compatibility(
 // path cannot execute even if the library still gets loaded.
 private val androidFakerNativeKillSwitchPatch = hexPatch(ignoreMissingTargetFiles = true, block = {
     "1F 01 09 EB 41 00 00 54 46 2E 00 94 BD 2D 00 94 FF C3 00 D1" asPatternTo
-            "1F 01 09 EB 41 00 00 54 1F 20 03 D5 1F 20 03 D5 FF C3 00 D1" inFile
+            "1F 01 09 EB 41 00 00 54 1F 20 03 D5 BD 2D 00 94 FF C3 00 D1" inFile
             "lib/arm64-v8a/libaf_native.so"
 
     // x86 (verified unique in current libaf_native.so)
-    // cmp [esp+0x14], eax ; jne +5 ; call abort ; call abort ; int3
+    // cmp [esp+0x14], eax ; jne +5 ; call abort ; call <non-abort helper>
     "00 00 3B 44 24 14 75 05 E8 A6 9F 00 00 E8 71 9D 00 00" asPatternTo
-        "00 00 3B 44 24 14 75 05 90 90 90 90 90 90 90 90 90 90" inFile
+        "00 00 3B 44 24 14 75 05 90 90 90 90 90 E8 71 9D 00 00" inFile
         "lib/x86/libaf_native.so"
 
     // x86_64 (verified unique in current libaf_native.so)
-    // cmp [rsp+0x10], rax ; jne +5 ; call abort ; call abort ; int3
+    // cmp [rsp+0x10], rax ; jne +5 ; call abort ; call <non-abort helper>
     "00 48 3B 44 24 10 75 05 E8 D3 A0 00 00 E8 9E 9E 00 00" asPatternTo
-        "00 48 3B 44 24 10 75 05 90 90 90 90 90 90 90 90 90 90" inFile
+        "00 48 3B 44 24 10 75 05 90 90 90 90 90 E8 9E 9E 00 00" inFile
         "lib/x86_64/libaf_native.so"
 })
 
