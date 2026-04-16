@@ -21,6 +21,9 @@ import com.android.tools.smali.dexlib2.builder.instruction.BuilderInstruction21s
 import com.android.tools.smali.dexlib2.builder.instruction.BuilderInstruction21c
 import com.android.tools.smali.dexlib2.builder.instruction.BuilderInstruction51l
 import com.android.tools.smali.dexlib2.immutable.reference.ImmutableFieldReference
+import com.android.tools.smali.dexlib2.builder.instruction.BuilderInstruction11n
+import com.android.tools.smali.dexlib2.builder.instruction.BuilderInstruction35c
+import com.android.tools.smali.dexlib2.immutable.reference.ImmutableMethodReference
 
 private val COMPATIBILITY_ANDROID_FAKER = Compatibility(
     name = "Android Faker",
@@ -184,6 +187,24 @@ internal object SignatureVerifierFingerprint : Fingerprint(
     }
 )
 
+// ─── Native.doInit / Native.getDex ─────────────────────────────────────────
+// Both are `native` in the original DEX. doInit verifies the APK signature and
+// returns false for any patched build, stopping the spoofing pipeline entirely.
+// getDex is registered by the same RegisterNatives call — once doInit is
+// de-natived that call fails for the whole class, so getDex must also be
+// replaced with a pure-Dalvik implementation backed by PatchedDexProvider.
+internal object NativeDoInitFingerprint : Fingerprint(
+    definingClass = "Lcom/androidfaker/core/util/Native;",
+    returnType = "Z",
+    parameters = listOf("Ljava/lang/String;")
+)
+
+internal object NativeGetDexFingerprint : Fingerprint(
+    definingClass = "Lcom/androidfaker/core/util/Native;",
+    returnType = "[B",
+    parameters = listOf()
+)
+
 // ═══════════════════════════════════════════════════════════════════════════
 // Patch Implementation
 // ═══════════════════════════════════════════════════════════════════════════
@@ -232,6 +253,50 @@ val androidFakerVipPatch = bytecodePatch(
             impl.addInstruction(BuilderInstruction51l(Opcode.CONST_WIDE, 0, value))
             impl.addInstruction(BuilderInstruction11x(Opcode.RETURN_WIDE, 0))
             return impl
+        }
+
+        // ─── 0. Native.doInit → true, Native.getDex → PatchedDexProvider.get() ──────
+        //
+        // doInit is a `static native` method that verifies the APK's signature against
+        // a hash stored in libaf_native.so.  Any modification to the APK (ours included)
+        // changes the signature, making doInit return false and silently disabling all
+        // spoofing.  We replace it with a pure-Dalvik stub that always returns true.
+        //
+        // getDex must also be replaced because RegisterNatives in JNI_OnLoad processes
+        // the entire Native class at once — de-nativing doInit causes that call to
+        // return JNI_ERR, leaving getDex unregistered and crashing on first call.
+        // PatchedDexProvider recovers the encrypted DEX from libaf_native.so at
+        // runtime using the same XOR-0x32 extraction logic as the Xposed module.
+
+        NativeDoInitFingerprint.methodOrNull?.let { method ->
+            val impl = MutableMethodImplementation(maxOf(3, method.implementation?.registerCount ?: 0))
+            // const/4 v0, 1  ;  return v0
+            impl.addInstruction(BuilderInstruction11n(Opcode.CONST_4, 0, 1))
+            impl.addInstruction(BuilderInstruction11x(Opcode.RETURN, 0))
+            replaceNativeMethod(method, impl)
+        } ?: run {
+            // Fallback: if the class is missing (future obfuscation), log and continue.
+            // The kill-switch hex patch still prevents the abort; only the DEX load is affected.
+        }
+
+        NativeGetDexFingerprint.methodOrNull?.let { method ->
+            // registerCount: 1 local (v0 for result) + 1 param (p0 = this) = 2
+            val impl = MutableMethodImplementation(maxOf(2, method.implementation?.registerCount ?: 0))
+            // invoke-static {}, PatchedDexProvider->get()[B
+            impl.addInstruction(
+                BuilderInstruction35c(
+                    Opcode.INVOKE_STATIC, 0, 0, 0, 0, 0, 0,
+                    ImmutableMethodReference(
+                        "Lapp/morphe/extension/androidfaker/PatchedDexProvider;",
+                        "get",
+                        emptyList(),
+                        "[B"
+                    )
+                )
+            )
+            impl.addInstruction(BuilderInstruction11x(Opcode.MOVE_RESULT_OBJECT, 0))
+            impl.addInstruction(BuilderInstruction11x(Opcode.RETURN_OBJECT, 0))
+            replaceNativeMethod(method, impl)
         }
 
         // ─── 1. Core VIP Check: ms6.b() → true ──────────────────────────
