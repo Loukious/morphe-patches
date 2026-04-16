@@ -249,9 +249,15 @@ val androidFakerVipPatch = bytecodePatch(
         val getDexNamesByClass = mutableMapOf<String, Set<String>>()
 
         classDefForEach { classDef ->
+            val hasSingletonInstanceField = classDef.fields.any {
+                it.type == classDef.type &&
+                        (it.accessFlags and AccessFlags.STATIC.value != 0)
+            }
+
+            if (!hasSingletonInstanceField) return@classDefForEach
+
             val doInitLikeNames = classDef.methods
                 .filter {
-                    it.accessFlags and AccessFlags.NATIVE.value != 0 &&
                             it.returnType == "Z" &&
                             it.parameterTypes.size == 1 &&
                             it.parameterTypes[0] == "Ljava/lang/String;"
@@ -261,18 +267,41 @@ val androidFakerVipPatch = bytecodePatch(
 
             val getDexLikeNames = classDef.methods
                 .filter {
-                    it.accessFlags and AccessFlags.NATIVE.value != 0 &&
                             it.returnType == "[B" &&
                             it.parameterTypes.isEmpty()
                 }
                 .map { it.name }
                 .toSet()
 
-            if (doInitLikeNames.isNotEmpty()) {
+            if (doInitLikeNames.isNotEmpty() && getDexLikeNames.isNotEmpty()) {
                 doInitNamesByClass[classDef.type] = doInitLikeNames
-            }
-            if (getDexLikeNames.isNotEmpty()) {
                 getDexNamesByClass[classDef.type] = getDexLikeNames
+            }
+        }
+
+        if (doInitNamesByClass.isEmpty() || getDexNamesByClass.isEmpty()) {
+            classDefForEach { classDef ->
+                val doInitLikeNames = classDef.methods
+                    .filter {
+                        it.returnType == "Z" &&
+                                it.parameterTypes.size == 1 &&
+                                it.parameterTypes[0] == "Ljava/lang/String;"
+                    }
+                    .map { it.name }
+                    .toSet()
+
+                val getDexLikeNames = classDef.methods
+                    .filter {
+                        it.returnType == "[B" &&
+                                it.parameterTypes.isEmpty()
+                    }
+                    .map { it.name }
+                    .toSet()
+
+                if (doInitLikeNames.isNotEmpty() && getDexLikeNames.isNotEmpty()) {
+                    doInitNamesByClass.putIfAbsent(classDef.type, doInitLikeNames)
+                    getDexNamesByClass.putIfAbsent(classDef.type, getDexLikeNames)
+                }
             }
         }
 
@@ -303,6 +332,8 @@ val androidFakerVipPatch = bytecodePatch(
                         (
                             insn.opcode == Opcode.INVOKE_VIRTUAL ||
                                 insn.opcode == Opcode.INVOKE_VIRTUAL_RANGE ||
+                                insn.opcode == Opcode.INVOKE_DIRECT ||
+                                insn.opcode == Opcode.INVOKE_DIRECT_RANGE ||
                                 insn.opcode == Opcode.INVOKE_STATIC ||
                                 insn.opcode == Opcode.INVOKE_STATIC_RANGE
                             ) &&
@@ -327,6 +358,8 @@ val androidFakerVipPatch = bytecodePatch(
                         (
                             insn.opcode == Opcode.INVOKE_VIRTUAL ||
                                 insn.opcode == Opcode.INVOKE_VIRTUAL_RANGE ||
+                                insn.opcode == Opcode.INVOKE_DIRECT ||
+                                insn.opcode == Opcode.INVOKE_DIRECT_RANGE ||
                                 insn.opcode == Opcode.INVOKE_STATIC ||
                                 insn.opcode == Opcode.INVOKE_STATIC_RANGE
                             ) &&
