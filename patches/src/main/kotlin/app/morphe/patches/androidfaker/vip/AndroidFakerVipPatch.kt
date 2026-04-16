@@ -15,7 +15,11 @@ import com.android.tools.smali.dexlib2.AccessFlags
 import com.android.tools.smali.dexlib2.Opcode
 import com.android.tools.smali.dexlib2.builder.MutableMethodImplementation
 import com.android.tools.smali.dexlib2.iface.ClassDef
+import com.android.tools.smali.dexlib2.iface.instruction.OneRegisterInstruction
+import com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction
+import com.android.tools.smali.dexlib2.iface.reference.MethodReference
 import com.android.tools.smali.dexlib2.immutable.ImmutableMethod
+import com.android.tools.smali.dexlib2.builder.instruction.BuilderInstruction10x
 import com.android.tools.smali.dexlib2.builder.instruction.BuilderInstruction11x
 import com.android.tools.smali.dexlib2.builder.instruction.BuilderInstruction21s
 import com.android.tools.smali.dexlib2.builder.instruction.BuilderInstruction21c
@@ -187,24 +191,6 @@ internal object SignatureVerifierFingerprint : Fingerprint(
     }
 )
 
-// ─── Native.doInit / Native.getDex ─────────────────────────────────────────
-// Both are `native` in the original DEX. doInit verifies the APK signature and
-// returns false for any patched build, stopping the spoofing pipeline entirely.
-// getDex is registered by the same RegisterNatives call — once doInit is
-// de-natived that call fails for the whole class, so getDex must also be
-// replaced with a pure-Dalvik implementation backed by PatchedDexProvider.
-internal object NativeDoInitFingerprint : Fingerprint(
-    definingClass = "Lcom/androidfaker/core/util/Native;",
-    returnType = "Z",
-    parameters = listOf("Ljava/lang/String;")
-)
-
-internal object NativeGetDexFingerprint : Fingerprint(
-    definingClass = "Lcom/androidfaker/core/util/Native;",
-    returnType = "[B",
-    parameters = listOf()
-)
-
 // ═══════════════════════════════════════════════════════════════════════════
 // Patch Implementation
 // ═══════════════════════════════════════════════════════════════════════════
@@ -216,6 +202,7 @@ val androidFakerVipPatch = bytecodePatch(
 ) {
     dependsOn(androidFakerNativeKillSwitchPatch)
     compatibleWith(COMPATIBILITY_ANDROID_FAKER)
+    extendWith("extensions/androidfaker.mpe")
 
     execute {
         // ─── Helper: replace a method with a pre-built impl ──────────────
@@ -255,48 +242,73 @@ val androidFakerVipPatch = bytecodePatch(
             return impl
         }
 
-        // ─── 0. Native.doInit → true, Native.getDex → PatchedDexProvider.get() ──────
-        //
-        // doInit is a `static native` method that verifies the APK's signature against
-        // a hash stored in libaf_native.so.  Any modification to the APK (ours included)
-        // changes the signature, making doInit return false and silently disabling all
-        // spoofing.  We replace it with a pure-Dalvik stub that always returns true.
-        //
-        // getDex must also be replaced because RegisterNatives in JNI_OnLoad processes
-        // the entire Native class at once — de-nativing doInit causes that call to
-        // return JNI_ERR, leaving getDex unregistered and crashing on first call.
-        // PatchedDexProvider recovers the encrypted DEX from libaf_native.so at
-        // runtime using the same XOR-0x32 extraction logic as the Xposed module.
+        // ─── 0. JNI-safe native pipeline bridge ──────────────────────────
+        // Keep Native.doInit/getDex native so JNI_OnLoad RegisterNatives succeeds.
+        // Instead, rewrite Java callsites:
+        // - Native.doInit(String): force move-result register to const/4 1
+        // - Native.getDex(): route invoke to PatchedDexProvider.get()
+        classDefForEach { classDef ->
+            val mutableClass = mutableClassDefBy(classDef)
 
-        NativeDoInitFingerprint.methodOrNull?.let { method ->
-            val impl = MutableMethodImplementation(maxOf(3, method.implementation?.registerCount ?: 0))
-            // const/4 v0, 1  ;  return v0
-            impl.addInstruction(BuilderInstruction11n(Opcode.CONST_4, 0, 1))
-            impl.addInstruction(BuilderInstruction11x(Opcode.RETURN, 0))
-            replaceNativeMethod(method, impl)
-        } ?: run {
-            // Fallback: if the class is missing (future obfuscation), log and continue.
-            // The kill-switch hex patch still prevents the abort; only the DEX load is affected.
-        }
+            classDef.methods.forEach methodLoop@{ method ->
+                val impl = method.implementation ?: return@methodLoop
+                val instructions = impl.instructions.toList()
 
-        NativeGetDexFingerprint.methodOrNull?.let { method ->
-            // registerCount: 1 local (v0 for result) + 1 param (p0 = this) = 2
-            val impl = MutableMethodImplementation(maxOf(2, method.implementation?.registerCount ?: 0))
-            // invoke-static {}, PatchedDexProvider->get()[B
-            impl.addInstruction(
-                BuilderInstruction35c(
-                    Opcode.INVOKE_STATIC, 0, 0, 0, 0, 0, 0,
-                    ImmutableMethodReference(
-                        "Lapp/morphe/extension/androidfaker/PatchedDexProvider;",
-                        "get",
-                        emptyList(),
-                        "[B"
-                    )
-                )
-            )
-            impl.addInstruction(BuilderInstruction11x(Opcode.MOVE_RESULT_OBJECT, 0))
-            impl.addInstruction(BuilderInstruction11x(Opcode.RETURN_OBJECT, 0))
-            replaceNativeMethod(method, impl)
+                var mutableMethod = mutableClass.findMutableMethodOf(method)
+
+                instructions.forEachIndexed { index, insn ->
+                    val ref = (insn as? ReferenceInstruction)
+                        ?.reference as? MethodReference ?: return@forEachIndexed
+
+                    val isNativeDoInitCall =
+                        (insn.opcode == Opcode.INVOKE_STATIC || insn.opcode == Opcode.INVOKE_STATIC_RANGE) &&
+                                ref.definingClass == "Lcom/androidfaker/core/util/Native;" &&
+                                ref.name == "doInit" &&
+                                ref.returnType == "Z" &&
+                                ref.parameterTypes.size == 1 &&
+                                ref.parameterTypes[0] == "Ljava/lang/String;"
+
+                    if (isNativeDoInitCall) {
+                        mutableMethod.implementation!!.replaceInstruction(
+                            index,
+                            BuilderInstruction10x(Opcode.NOP)
+                        )
+
+                        val nextInsn = instructions.getOrNull(index + 1)
+                        if (nextInsn?.opcode == Opcode.MOVE_RESULT) {
+                            val resultRegister = (nextInsn as OneRegisterInstruction).registerA
+                            mutableMethod.implementation!!.replaceInstruction(
+                                index + 1,
+                                BuilderInstruction11n(Opcode.CONST_4, resultRegister, 1)
+                            )
+                        }
+                        return@forEachIndexed
+                    }
+
+                    val isNativeGetDexCall =
+                        (insn.opcode == Opcode.INVOKE_STATIC || insn.opcode == Opcode.INVOKE_STATIC_RANGE) &&
+                                ref.definingClass == "Lcom/androidfaker/core/util/Native;" &&
+                                ref.name == "getDex" &&
+                                ref.returnType == "[B" &&
+                                ref.parameterTypes.isEmpty()
+
+                    if (isNativeGetDexCall) {
+                        mutableMethod.implementation!!.replaceInstruction(
+                            index,
+                            BuilderInstruction35c(
+                                Opcode.INVOKE_STATIC,
+                                0, 0, 0, 0, 0, 0,
+                                ImmutableMethodReference(
+                                    "Lapp/morphe/extension/androidfaker/PatchedDexProvider;",
+                                    "get",
+                                    emptyList(),
+                                    "[B"
+                                )
+                            )
+                        )
+                    }
+                }
+            }
         }
 
         // ─── 1. Core VIP Check: ms6.b() → true ──────────────────────────
