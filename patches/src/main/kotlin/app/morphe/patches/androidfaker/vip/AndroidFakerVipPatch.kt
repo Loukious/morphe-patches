@@ -240,93 +240,28 @@ val androidFakerVipPatch = bytecodePatch(
             return impl
         }
 
-        // ─── 0. JNI-safe native pipeline bridge ──────────────────────────
+        // ─── 0. JNI-safe native pipeline bridge (low-overhead) ──────────
         // Keep Native.doInit/getDex native so JNI_OnLoad RegisterNatives succeeds.
-        // Instead, rewrite Java callsites:
-        // - Native.doInit(String): keep invoke for native side-effects, force move-result to 1
-        // - Native.getDex(): route invoke to PatchedDexProvider.get()
-        val doInitNamesByClass = mutableMapOf<String, Set<String>>()
-        val getDexNamesByClass = mutableMapOf<String, Set<String>>()
+        // To avoid expensive full-DEX discovery passes, only scan the known
+        // native bridge class and loader package callsites.
+        val nativeBridgeClass = "Lcom/androidfaker/core/util/Native;"
+        val loaderPackagePrefix = "Lcom/android1500/androidfaker/data/loader/"
 
         classDefForEach { classDef ->
-            val hasSingletonInstanceField = classDef.fields.any {
-                it.type == classDef.type &&
-                        (it.accessFlags and AccessFlags.STATIC.value != 0)
-            }
+            val shouldScanClass =
+                classDef.type == nativeBridgeClass || classDef.type.startsWith(loaderPackagePrefix)
+            if (!shouldScanClass) return@classDefForEach
 
-            if (!hasSingletonInstanceField) return@classDefForEach
-
-            val doInitLikeNames = classDef.methods
-                .filter {
-                            it.returnType == "Z" &&
-                            it.parameterTypes.size == 1 &&
-                            it.parameterTypes[0] == "Ljava/lang/String;"
-                }
-                .map { it.name }
-                .toSet()
-
-            val getDexLikeNames = classDef.methods
-                .filter {
-                            it.returnType == "[B" &&
-                            it.parameterTypes.isEmpty()
-                }
-                .map { it.name }
-                .toSet()
-
-            if (doInitLikeNames.isNotEmpty() && getDexLikeNames.isNotEmpty()) {
-                doInitNamesByClass[classDef.type] = doInitLikeNames
-                getDexNamesByClass[classDef.type] = getDexLikeNames
-            }
-        }
-
-        if (doInitNamesByClass.isEmpty() || getDexNamesByClass.isEmpty()) {
-            classDefForEach { classDef ->
-                val doInitLikeNames = classDef.methods
-                    .filter {
-                        it.returnType == "Z" &&
-                                it.parameterTypes.size == 1 &&
-                                it.parameterTypes[0] == "Ljava/lang/String;"
-                    }
-                    .map { it.name }
-                    .toSet()
-
-                val getDexLikeNames = classDef.methods
-                    .filter {
-                        it.returnType == "[B" &&
-                                it.parameterTypes.isEmpty()
-                    }
-                    .map { it.name }
-                    .toSet()
-
-                if (doInitLikeNames.isNotEmpty() && getDexLikeNames.isNotEmpty()) {
-                    doInitNamesByClass.putIfAbsent(classDef.type, doInitLikeNames)
-                    getDexNamesByClass.putIfAbsent(classDef.type, getDexLikeNames)
-                }
-            }
-        }
-
-        if (!doInitNamesByClass.containsKey("Lcom/androidfaker/core/util/Native;")) {
-            doInitNamesByClass["Lcom/androidfaker/core/util/Native;"] = setOf("doInit")
-        }
-        if (!getDexNamesByClass.containsKey("Lcom/androidfaker/core/util/Native;")) {
-            getDexNamesByClass["Lcom/androidfaker/core/util/Native;"] = setOf("getDex")
-        }
-
-        classDefForEach { classDef ->
             val mutableClass = mutableClassDefBy(classDef)
 
             classDef.methods.forEach methodLoop@{ method ->
                 val impl = method.implementation ?: return@methodLoop
                 val instructions = impl.instructions.toList()
-
                 val mutableMethod = mutableClass.findMutableMethodOf(method)
 
                 instructions.forEachIndexed { index, insn ->
                     val ref = (insn as? ReferenceInstruction)
                         ?.reference as? MethodReference ?: return@forEachIndexed
-
-                    val targetDoInitNames = doInitNamesByClass[ref.definingClass] ?: emptySet()
-                    val targetGetDexNames = getDexNamesByClass[ref.definingClass] ?: emptySet()
 
                     val isNativeDoInitCall =
                         (
@@ -337,7 +272,8 @@ val androidFakerVipPatch = bytecodePatch(
                                 insn.opcode == Opcode.INVOKE_STATIC ||
                                 insn.opcode == Opcode.INVOKE_STATIC_RANGE
                             ) &&
-                                targetDoInitNames.contains(ref.name) &&
+                                ref.definingClass == nativeBridgeClass &&
+                                ref.name == "doInit" &&
                                 ref.returnType == "Z" &&
                                 ref.parameterTypes.size == 1 &&
                                 ref.parameterTypes[0] == "Ljava/lang/String;"
@@ -363,7 +299,8 @@ val androidFakerVipPatch = bytecodePatch(
                                 insn.opcode == Opcode.INVOKE_STATIC ||
                                 insn.opcode == Opcode.INVOKE_STATIC_RANGE
                             ) &&
-                                targetGetDexNames.contains(ref.name) &&
+                                ref.definingClass == nativeBridgeClass &&
+                                ref.name == "getDex" &&
                                 ref.returnType == "[B" &&
                                 ref.parameterTypes.isEmpty()
 
@@ -426,45 +363,37 @@ val androidFakerVipPatch = bytecodePatch(
                 ))
         }
 
-        // ─── 5. UserInfo Parcelable: vipStatus → 1, dueDate → 2100 ──────
-        classDefForEach { classDef ->
-            if (!isUserInfoClass(classDef)) return@classDefForEach
-
-            val mutableClass = mutableClassDefBy(classDef)
-
-            mutableClass.methods.toList().forEach { method ->
-                if (method.implementation == null) return@forEach
-
-                // int getter (not describeContents/hashCode) → return 1
-                if (method.returnType == "I" &&
-                    method.parameters.isEmpty() &&
-                    method.name != "describeContents" &&
-                    method.name != "hashCode" &&
-                    method.accessFlags and AccessFlags.PUBLIC.value != 0
-                ) {
-                    method.returnEarly(1)
-                }
-
-                // long getter → return far future epoch
-                if (method.returnType == "J" &&
-                    method.parameters.isEmpty() &&
-                    method.accessFlags and AccessFlags.PUBLIC.value != 0
-                ) {
-                    replaceNativeMethod(method, buildLongReturnImpl(method, 4102444800L))
-                }
-            }
-        }
-
-        // ─── 6. Signature Bypass: ep5.d(Context) → true ─────────────────
-        SignatureVerifierFingerprint.methodOrNull?.let { method ->
-            method.returnEarly(true)
-        }
-
-        // ─── 7. Randomize + ApplyModel VIP params ────────────────────────
+        // ─── 5. UserInfo Parcelable + HookConfig VIP params (single pass) ──────
         val hookConfigType = "Lcom/androidfaker/data/repository/util/HookConfig;"
         classDefForEach { classDef ->
-            classDef.methods.forEach { method ->
-                val impl = method.implementation ?: return@forEach
+            val mutableClass = mutableClassDefBy(classDef)
+
+            if (isUserInfoClass(classDef)) {
+                mutableClass.methods.toList().forEach { method ->
+                    if (method.implementation == null) return@forEach
+
+                    // int getter (not describeContents/hashCode) → return 1
+                    if (method.returnType == "I" &&
+                        method.parameters.isEmpty() &&
+                        method.name != "describeContents" &&
+                        method.name != "hashCode" &&
+                        method.accessFlags and AccessFlags.PUBLIC.value != 0
+                    ) {
+                        method.returnEarly(1)
+                    }
+
+                    // long getter → return far future epoch
+                    if (method.returnType == "J" &&
+                        method.parameters.isEmpty() &&
+                        method.accessFlags and AccessFlags.PUBLIC.value != 0
+                    ) {
+                        replaceNativeMethod(method, buildLongReturnImpl(method, 4102444800L))
+                    }
+                }
+            }
+
+            mutableClass.methods.toList().forEach { method ->
+                val mutableImpl = method.implementation ?: return@forEach
 
                 // Randomize: method(HookConfig, boolean) → force isVipUser = true
                 if (method.returnType == hookConfigType &&
@@ -472,10 +401,8 @@ val androidFakerVipPatch = bytecodePatch(
                     method.parameterTypes[0] == hookConfigType &&
                     method.parameterTypes[1] == "Z"
                 ) {
-                    val mutableClass = mutableClassDefBy(classDef)
-                    val mutableMethod = mutableClass.findMutableMethodOf(method)
-                    val boolReg = mutableMethod.implementation!!.registerCount - 1
-                    mutableMethod.implementation!!.addInstruction(0,
+                    val boolReg = mutableImpl.registerCount - 1
+                    mutableImpl.addInstruction(0,
                         BuilderInstruction21s(Opcode.CONST_16, boolReg, 1))
                 }
 
@@ -486,13 +413,16 @@ val androidFakerVipPatch = bytecodePatch(
                     method.parameterTypes[2] == "Ljava/lang/String;" &&
                     method.parameterTypes[3] == "Z"
                 ) {
-                    val mutableClass = mutableClassDefBy(classDef)
-                    val mutableMethod = mutableClass.findMutableMethodOf(method)
-                    val boolReg = mutableMethod.implementation!!.registerCount - 1
-                    mutableMethod.implementation!!.addInstruction(0,
+                    val boolReg = mutableImpl.registerCount - 1
+                    mutableImpl.addInstruction(0,
                         BuilderInstruction21s(Opcode.CONST_16, boolReg, 1))
                 }
             }
+        }
+
+        // ─── 6. Signature Bypass: ep5.d(Context) → true ─────────────────
+        SignatureVerifierFingerprint.methodOrNull?.let { method ->
+            method.returnEarly(true)
         }
     }
 }
