@@ -48,7 +48,7 @@ private val COMPATIBILITY_ANDROID_FAKER = Compatibility(
 // ─── Native Binary Kill-Switch (multi-arch) ─────────────────────────────────
 // Directly NOP verified abort callsites in libaf_native.so so the abort-trigger
 // path cannot execute even if the library still gets loaded.
-private val androidFakerNativeKillSwitchPatch = hexPatch(ignoreMissingTargetFiles = true) {
+private val androidFakerNativeKillSwitchPatch = hexPatch(ignoreMissingTargetFiles = true, block = {
     "1F 01 09 EB 41 00 00 54 46 2E 00 94 BD 2D 00 94 FF C3 00 D1" asPatternTo
             "1F 01 09 EB 41 00 00 54 1F 20 03 D5 1F 20 03 D5 FF C3 00 D1" inFile
             "lib/arm64-v8a/libaf_native.so"
@@ -64,7 +64,7 @@ private val androidFakerNativeKillSwitchPatch = hexPatch(ignoreMissingTargetFile
     "00 48 3B 44 24 10 75 05 E8 D3 A0 00 00 E8 9E 9E 00 00" asPatternTo
         "00 48 3B 44 24 10 75 05 90 90 90 90 90 90 90 90 90 90" inFile
         "lib/x86_64/libaf_native.so"
-}
+})
 
 // ─── Native Anti-Tamper ─────────────────────────────────────────────────────
 internal object NativeDoInitFingerprint : Fingerprint(
