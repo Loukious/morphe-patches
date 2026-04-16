@@ -8,11 +8,16 @@ import java.lang.ref.WeakReference;
 
 import app.morphe.extension.shared.Logger;
 import app.morphe.extension.shared.Utils;
+import app.morphe.extension.youtube.settings.Settings;
 
 @SuppressWarnings("unused")
-public class PlayerControlsPatch {
+public class LegacyPlayerControlsPatch {
 
-    public static WeakReference<ImageView> fullscreenButtonRef = new WeakReference<>(null);
+    // 20.31 is first version with working buttons, but the layout is weird with oval-shaped player buttons.
+    public static final boolean RESTORE_OLD_PLAYER_BUTTONS = Settings.RESTORE_OLD_PLAYER_BUTTONS.get()
+            || !VersionCheckPatch.IS_20_31_OR_GREATER;
+
+    public static WeakReference<View> fullscreenButtonRef = new WeakReference<>(null);
 
     private static boolean fullscreenButtonVisibilityCallbacksExist() {
         return false; // Modified during patching if needed.
@@ -22,6 +27,9 @@ public class PlayerControlsPatch {
      * Injection point.
      */
     public static void hideBottomGradientScrim(ImageView bottomGradientScrim) {
+        if (!RESTORE_OLD_PLAYER_BUTTONS) {
+            return;
+        }
         if (bottomGradientScrim != null) {
             Utils.runOnMainThread(() -> {
                 bottomGradientScrim.setImageAlpha(0);
@@ -33,7 +41,7 @@ public class PlayerControlsPatch {
     /**
      * Injection point.
      */
-    public static void setFullscreenCloseButton(ImageView imageButton) {
+    public static void setFullscreenCloseButton(View imageButton) {
         fullscreenButtonRef = new WeakReference<>(imageButton);
         Logger.printDebug(() -> "Fullscreen button set");
 
@@ -69,5 +77,16 @@ public class PlayerControlsPatch {
     // noinspection EmptyMethod
     private static void fullscreenButtonVisibilityChanged(boolean isVisible) {
         // Code added during patching.
+    }
+
+
+    /**
+     * Injection point.
+     */
+    public static boolean usePlayerBottomControlsExploderLayout(boolean original) {
+        if (RESTORE_OLD_PLAYER_BUTTONS) {
+            return false;
+        }
+        return original;
     }
 }

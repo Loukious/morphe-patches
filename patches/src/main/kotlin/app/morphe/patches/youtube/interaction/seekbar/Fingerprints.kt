@@ -9,6 +9,7 @@ import app.morphe.patcher.literal
 import app.morphe.patcher.methodCall
 import app.morphe.patcher.newInstance
 import app.morphe.patcher.opcode
+import app.morphe.patches.youtube.video.quality.VideoStreamingDataToStringFingerprint
 import app.morphe.util.customLiteral
 import com.android.tools.smali.dexlib2.AccessFlags
 import com.android.tools.smali.dexlib2.Opcode
@@ -36,16 +37,6 @@ internal object AllowSwipingUpGestureFingerprint : Fingerprint(
     accessFlags = listOf(AccessFlags.PUBLIC, AccessFlags.FINAL),
     returnType = "V",
     parameters = listOf("L")
-)
-
-internal object DisableFastForwardLegacyFingerprint : Fingerprint(
-    returnType = "Z",
-    parameters = listOf(),
-    filters = OpcodesFilter.opcodesToFilters(
-        Opcode.MOVE_RESULT
-    ),
-    // Intent start flag only used in the subscription activity
-    custom = customLiteral { 45411330 } // TODO: Convert this to an instruction filter
 )
 
 internal object DisableFastForwardGestureFingerprint : Fingerprint(
@@ -135,3 +126,16 @@ internal object FullscreenLargeSeekbarFeatureFlagFingerprint : Fingerprint(
         literal(45691569)
     )
 )
+
+internal object VideoStreamingDataAllowSeekingFingerprint : Fingerprint(
+    classFingerprint = VideoStreamingDataToStringFingerprint,
+    returnType = "Z",
+    parameters = listOf(),
+    filters = listOf(
+        literal(8),
+        opcode(Opcode.IF_EQ, location = MatchAfterImmediately()),
+        // Another method in the same class almost matches this fingerprint but uses literal(0) here.
+        literal(1, location = MatchAfterImmediately()),
+    )
+)
+

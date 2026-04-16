@@ -29,7 +29,7 @@ Second \"item\" text"</string>
   <string name="morphe_settings_screen_08_swipe_controls_title">スワイプ コントロール</string>
   <string name="morphe_settings_screen_11_misc_title">その他</string>
   <string name="morphe_settings_screen_12_video_title">動画</string>
-  <string name="morphe_restore_old_settings_menus_title">古い設定メニューを復元</string>
+  <string name="morphe_restore_old_settings_menus_title">以前の設定メニューに戻す</string>
   <string name="morphe_restore_old_settings_menus_summary_on">古いスタイルの設定メニューが表示されます</string>
   <string name="morphe_restore_old_settings_menus_summary_off">新しいスタイルの設定メニューが表示されます</string>
   <!-- misc.backgroundplayback.backgroundPlaybackPatch -->
@@ -37,7 +37,7 @@ Second \"item\" text"</string>
   <string name="morphe_shorts_disable_background_playback_summary_on">ショート動画のバックグラウンド再生は無効です</string>
   <string name="morphe_shorts_disable_background_playback_summary_off">ショート動画のバックグラウンド再生は有効です</string>
   <!-- misc.debugging.enableDebuggingPatch -->
-  <string name="morphe_debug_protobuffer_title">protocol buffer をログに保存</string>
+  <string name="morphe_debug_protobuffer_title">protocol buffer をデバッグログに保存</string>
   <string name="morphe_debug_protobuffer_summary_on">デバッグログには protocol buffer が含まれます</string>
   <string name="morphe_debug_protobuffer_summary_off">デバッグログには protocol buffer は含まれません</string>
   <string name="morphe_debug_protobuffer_user_dialog_message">"この設定を有効にすると、一部の UI コンポーネントの画面上に表示されるテキストを含む追加のレイアウト データがログに記録されるようになります。
@@ -48,16 +48,16 @@ Second \"item\" text"</string>
   <!-- layout.disableLayoutUpdatesPatch -->
   <string name="morphe_disable_layout_updates_title">レイアウトの更新を無効化</string>
   <string name="morphe_disable_layout_updates_summary_on">レイアウトはサーバーから更新されません</string>
-  <string name="morphe_disable_layout_updates_summary_off">レイアウトはサーバーから更新されます</string>
+  <string name="morphe_disable_layout_updates_summary_off">レイアウトがサーバーから更新されます</string>
   <string name="morphe_disable_layout_updates_user_dialog_message">"アプリのレイアウトは、初回インストール時に使用されていたレイアウトに戻ります。
 
 一部のサーバー側からのレイアウトの更新が初回インストールの状態に戻らない場合があります。
 
 以下の変更を伴います:
-• プレイヤーのフライアウト メニュー (または関連設定) 内のコンポーネントが動作しない場合がある。
+• プレイヤーのフライアウト メニュー (または関連設定) 内のコンポーネントが正常に動作しない場合がある。
 • 数字の回転アニメーションが表示されない。
 • マイページタブがライブラリタブに戻る。
-• 動画の概要欄の音楽セクションが動作しない場合がある。
+• 動画の概要欄の音楽セクションが正常に動作しない場合がある。
 • プレーヤーのフライアウト メニューの項目を非表示にできない。
 • ライブラリタブに「アカウントを切り替える」ボタンが表示されない場合がある。"</string>
   <!-- layout.hide.general.hideLayoutComponentsPatch -->
@@ -121,6 +121,9 @@ Second \"item\" text"</string>
   <string name="morphe_hide_playables_title">ゲームルームを非表示</string>
   <string name="morphe_hide_playables_summary_on">ゲームルームは表示されません</string>
   <string name="morphe_hide_playables_summary_off">ゲームルームは表示されます</string>
+  <string name="morphe_hide_search_term_thumbnails_title">検索履歴のサムネイルを非表示</string>
+  <string name="morphe_hide_search_term_thumbnails_summary_on">検索履歴のサムネイルは表示されません</string>
+  <string name="morphe_hide_search_term_thumbnails_summary_off">検索履歴のサムネイルは表示されます</string>
   <!-- 'Show more' should be translated using the same localized wording YouTube displays for the button.
           This button usually appears when searching for a YouTube creator. -->
   <string name="morphe_hide_show_more_button_title">「もっと見る」ボタンを非表示</string>
@@ -190,8 +193,8 @@ YouTube Doodle が表示されていると、カスタマイズしたヘッダ�
   <string name="morphe_hide_subscribers_community_guidelines_summary_on">チャンネル登録者のコミュニティ ガイドラインは表示されません</string>
   <string name="morphe_hide_subscribers_community_guidelines_summary_off">チャンネル登録者のコミュニティ ガイドラインは表示されます</string>
   <string name="morphe_hide_timed_reactions_title">Timed Reaction を非表示</string>
-  <string name="morphe_hide_timed_reactions_summary_on">Timed Reaction は表示されません\n\nライブ配信のチャット欄に常駐するハート マーク ボタンが非表示になります</string>
-  <string name="morphe_hide_timed_reactions_summary_off">Timed Reaction は表示されます\n\nライブ配信のチャット欄にハート マーク ボタンが常駐します</string>
+  <string name="morphe_hide_timed_reactions_summary_on">Timed Reaction は表示されません\n\nライブ配信のチャット欄に常駐するハート アイコン ボタンが非表示になります</string>
+  <string name="morphe_hide_timed_reactions_summary_off">Timed Reaction は表示されます\n\nライブ配信のチャット欄にハート アイコン ボタンが常駐します</string>
   <string name="morphe_hide_video_title_title">動画のタイトルを非表示</string>
   <string name="morphe_hide_video_title_summary_on">全画面表示モードの動画のタイトルはプレーヤー オーバーレイに表示されません</string>
   <string name="morphe_hide_video_title_summary_off">全画面表示モードの動画のタイトルはプレーヤー オーバーレイに表示されます</string>
@@ -232,7 +235,7 @@ YouTube Doodle が表示されていると、カスタマイズしたヘッダ�
   <string name="morphe_hide_feed_flyout_menu_summary_on">フィードのフライアウト メニューのフィルタは有効です</string>
   <string name="morphe_hide_feed_flyout_menu_summary_off">フィードのフライアウト メニューのフィルタは無効です</string>
   <string name="morphe_hide_feed_flyout_menu_filter_strings_title">フィードのフライアウト メニューのフィルタ</string>
-  <string name="morphe_hide_feed_flyout_menu_filter_strings_summary">非表示にするフライアウト メニューのメニュー名を改行区切りで入力します</string>
+  <string name="morphe_hide_feed_flyout_menu_filter_strings_summary">非表示にするフライアウト メニューのメニュー名を改行区切りで入力してください</string>
   <string name="morphe_hide_gaming_section_title">ゲームを非表示</string>
   <string name="morphe_hide_gaming_section_summary_on">ゲーム セクションは表示されません</string>
   <string name="morphe_hide_gaming_section_summary_off">ゲーム セクションは表示されます</string>
@@ -282,7 +285,7 @@ YouTube Doodle が表示されていると、カスタマイズしたヘッダ�
   <string name="morphe_hide_channel_tab_summary_on">チャンネル ページのタブのフィルタは有効です</string>
   <string name="morphe_hide_channel_tab_summary_off">チャンネル ページのタブのフィルタは無効です</string>
   <string name="morphe_hide_channel_tab_filter_strings_title">チャンネル ページのタブのフィルタ</string>
-  <string name="morphe_hide_channel_tab_filter_strings_summary">非表示にするチャンネル ページのタブのタブ名を改行区切りで入力します</string>
+  <string name="morphe_hide_channel_tab_filter_strings_summary">非表示にするチャンネル ページのタブのタブ名を改行区切りで入力してください</string>
   <!-- 'Community' should be translated using the same localized wording YouTube displays for the button. -->
   <string name="morphe_hide_community_button_title">コミュニティ ボタンを非表示</string>
   <string name="morphe_hide_community_button_summary_on">コミュニティ ボタンは表示されません</string>
@@ -307,15 +310,15 @@ YouTube Doodle が表示されていると、カスタマイズしたヘッダ�
   <string name="morphe_hide_subscribe_button_in_channel_page_summary_off">チャンネル登録ボタンは表示されます</string>
   <string name="morphe_comments_screen_title">コメント</string>
   <string name="morphe_comments_screen_summary">コメント セクションのコンポーネントを表示または非表示にします</string>
-  <string name="morphe_hide_comments_carousel_title">横スライド欄のフィルタを有効化</string>
-  <string name="morphe_hide_comments_carousel_summary_on">コメント セクションの横スライド欄のフィルタは有効です</string>
-  <string name="morphe_hide_comments_carousel_summary_off">コメント セクションの横スライド欄のフィルタは無効です</string>
+  <string name="morphe_hide_comments_carousel_title">横スワイプ欄のフィルタを有効化</string>
+  <string name="morphe_hide_comments_carousel_summary_on">コメント セクションの横スワイプ欄のフィルタは有効です</string>
+  <string name="morphe_hide_comments_carousel_summary_off">コメント セクションの横スワイプ欄のフィルタは無効です</string>
   <string name="morphe_hide_comments_carousel_user_dialog_message">"注意:
-• 横スライド欄の正確なタイトルをフィルタに入力してください。(例:「質問する」「この動画をハイプする」「YouTube Music で聴く」など)
-• 横スライド欄を非表示にすると予期せぬ副作用が発生する可能性がある。
-• すべての横スライド欄を非表示にした場合、コメント セクションごと表示されなくなる。"</string>
-  <string name="morphe_hide_comments_carousel_filter_strings_title">横スライド欄のフィルタ</string>
-  <string name="morphe_hide_comments_carousel_filter_strings_summary">非表示にするコメント セクションの横スライド欄のタイトルを改行区切りで入力します</string>
+• 横スワイプ欄の正確なタイトルを入力してください。(例:「質問する」「この動画をハイプする」「YouTube Music で聴く」など)
+• 横スワイプ欄を非表示にすると予期せぬ副作用が発生する可能性がある。
+• すべての横スワイプ欄を非表示にした場合、コメント セクションごと表示されなくなる。"</string>
+  <string name="morphe_hide_comments_carousel_filter_strings_title">横スワイプ欄のフィルタ</string>
+  <string name="morphe_hide_comments_carousel_filter_strings_summary">非表示にするコメント セクションの横スワイプ欄のタイトルを改行区切りで入力してください</string>
   <string name="morphe_hide_comments_ai_chat_summary_title">AI による「チャットの要約」を非表示</string>
   <string name="morphe_hide_comments_ai_chat_summary_summary_on">AI による「チャットの要約」は表示されません</string>
   <string name="morphe_hide_comments_ai_chat_summary_summary_off">AI による「チャットの要約」は表示されます</string>
@@ -455,9 +458,9 @@ YouTube Doodle が表示されていると、カスタマイズしたヘッダ�
   <string name="morphe_copy_video_url_title">「動画の URL をコピー」ボタンを表示</string>
   <string name="morphe_copy_video_url_summary_on">プレーヤー オーバーレイに「動画の URL をコピー」ボタンが表示されます。タップすると動画の URL が、長押しするとタイムスタンプ付きの URL がそれぞれコピーされます</string>
   <string name="morphe_copy_video_url_summary_off">プレーヤー オーバーレイに「動画の URL をコピー」ボタンは表示されません</string>
-  <string name="morphe_copy_video_url_timestamp_title">「タイムスタンプ付き URL をコピー」ボタンを表示</string>
-  <string name="morphe_copy_video_url_timestamp_summary_on">プレーヤー オーバーレイに「タイムスタンプ付き URL をコピー」ボタンが表示されます。タップするとタイムスタンプ付きの動画の URL が、長押しするとタイムスタンプなしの URL がそれぞれコピーされます</string>
-  <string name="morphe_copy_video_url_timestamp_summary_off">プレーヤー オーバーレイに「タイムスタンプ付き URL をコピー」ボタンは表示されません</string>
+  <string name="morphe_copy_video_url_timestamp_title">タイムスタンプを付けてコピー</string>
+  <string name="morphe_copy_video_url_timestamp_summary_on">「動画の URL をコピー」ボタンはタイムスタンプ付きの URL をコピーします。長押しするとタイムスタンプなしの URL をコピーします</string>
+  <string name="morphe_copy_video_url_timestamp_summary_off">「動画の URL をコピー」ボタンはタイムスタンプなしの URL をコピーします。長押しするとタイムスタンプ付きの URL をコピーします</string>
   <!-- interaction.dialog.removeViewerDiscretionDialogPatch -->
   <string name="morphe_remove_viewer_discretion_dialog_title">「ご自身の責任」ダイアログを削除</string>
   <string name="morphe_remove_viewer_discretion_dialog_summary_on">ダイアログは削除されます</string>
@@ -501,6 +504,29 @@ YouTube Doodle が表示されていると、カスタマイズしたヘッダ�
   <string name="morphe_loop_video_button_summary_off">プレーヤー オーバーレイに「動画のループ再生」ボタンは表示されません</string>
   <string name="morphe_loop_video_button_toast_on">動画のループ再生がオンになっています</string>
   <string name="morphe_loop_video_button_toast_off">動画のループ再生がオフになっています</string>
+  <!-- interaction.playall.playAllButtonPatch -->
+  <string name="morphe_play_all_button_title">「すべて再生」ボタンを表示</string>
+  <string name="morphe_play_all_button_summary_on">"プレーヤー オーバーレイに「すべて再生」ボタンが表示されます
+タップするとチャンネルのすべての動画から成るプレイリストを生成する
+長押しすると元に戻る
+
+注意: ライブ配信では正常に動作しない場合があります"</string>
+  <string name="morphe_play_all_button_summary_off">プレーヤー オーバーレイに「すべて再生」ボタンは表示されません</string>
+  <string name="morphe_play_all_button_type_title">プレイリストの生成方法</string>
+  <string name="morphe_play_all_button_type_entry_0">すべてのコンテンツ (古い順)</string>
+  <string name="morphe_play_all_button_type_entry_1">すべてのコンテンツ (新しい順)</string>
+  <string name="morphe_play_all_button_type_entry_2">すべてのコンテンツ (人気順)</string>
+  <string name="morphe_play_all_button_type_entry_3">動画のみ (新しい順)</string>
+  <string name="morphe_play_all_button_type_entry_4">動画のみ (人気順)</string>
+  <string name="morphe_play_all_button_type_entry_5">ショート動画のみ (新しい順)</string>
+  <string name="morphe_play_all_button_type_entry_6">ショート動画のみ (人気順)</string>
+  <string name="morphe_play_all_button_type_entry_7">アーカイブ動画のみ (新しい順)</string>
+  <string name="morphe_play_all_button_type_entry_8">アーカイブ動画のみ (人気順)</string>
+  <string name="morphe_play_all_button_type_entry_9">すべてのメンバー限定コンテンツ</string>
+  <string name="morphe_play_all_button_type_entry_10">メンバー限定動画</string>
+  <string name="morphe_play_all_button_type_entry_11">メンバー限定ショート動画</string>
+  <string name="morphe_play_all_button_type_entry_12">メンバー限定ライブ配信</string>
+  <string name="morphe_play_all_button_not_available_toast">チャンネル ID が一致しないためプレイリストを生成できません</string>
   <!-- interaction.reload.reloadVideoPatch -->
   <string name="morphe_reload_video_title">動画の再読み込みボタンを表示</string>
   <string name="morphe_reload_video_summary_on">プレーヤー オーバーレイに動画の再読み込みボタンが表示されます</string>
@@ -510,6 +536,10 @@ YouTube Doodle が表示されていると、カスタマイズしたヘッダ�
   <string name="morphe_disable_precise_seeking_gesture_title">精密シーク ジェスチャーを無効化</string>
   <string name="morphe_disable_precise_seeking_gesture_summary_on">精密シーク ジェスチャーは無効です。シークバーを上へスワイプしても、「再生位置の細かい調整」モードにはなりません</string>
   <string name="morphe_disable_precise_seeking_gesture_summary_off">精密シーク ジェスチャーは有効です。シークバーを上へスワイプすると、「再生位置の細かい調整」モードになります</string>
+  <!-- interaction.seekbar.livestreamDvrPatch -->
+  <string name="morphe_livestream_dvr_title">ライブ配信で DVR を強制的に有効化</string>
+  <string name="morphe_livestream_dvr_summary_on">すべてのライブ配信でシークが可能です</string>
+  <string name="morphe_livestream_dvr_summary_off">ライブ配信でシークが利用できない場合があります</string>
   <!-- interaction.seekbar.enableSlideToSeekPatch -->
   <string name="morphe_slide_to_seek_title">スライドによるシークを有効化</string>
   <string name="morphe_slide_to_seek_summary_on">スライドによるシークは有効です。プレーヤー画面を左右にスライドすると、前後にシークします</string>
@@ -722,8 +752,8 @@ YouTube Doodle が表示されていると、カスタマイズしたヘッダ�
   <string name="morphe_navigation_bar_animations_summary_on">ナビゲーションの遷移がアニメーション表示されます</string>
   <string name="morphe_navigation_bar_animations_summary_off">ナビゲーションの遷移はアニメーション表示されません</string>
   <string name="morphe_disable_auto_hide_navigation_bar_title">ナビゲーション バーの自動非表示を無効化</string>
-  <string name="morphe_disable_auto_hide_navigation_bar_summary_on">下にスクロールすると、ナビゲーション バーが非表示になります</string>
-  <string name="morphe_disable_auto_hide_navigation_bar_summary_off">下にスクロールしても、ナビゲーション バーは表示され続けます</string>
+  <string name="morphe_disable_auto_hide_navigation_bar_summary_on">スクロール中にナビゲーション バーは非表示になりません</string>
+  <string name="morphe_disable_auto_hide_navigation_bar_summary_off">スクロール中にナビゲーション バーが非表示になる場合があります</string>
   <string name="morphe_disable_translucent_status_bar_title">半透明ステータスバーを無効化</string>
   <string name="morphe_disable_translucent_status_bar_summary_on">ステータスバーは透けません</string>
   <string name="morphe_disable_translucent_status_bar_summary_off">ステータスバーは状況に応じて透けます</string>
@@ -1344,7 +1374,7 @@ Automotive レイアウト
 
 再び偽装をオフにする場合には、UI の不具合を防ぐためにアプリデータを消去することを推奨します。"</string>
   <string name="morphe_spoof_app_version_target_title">アプリバージョンの偽装先</string>
-  <string name="morphe_spoof_app_version_target_entry_20_39">20.39.41 - 古い「再生リストに保存」を復元</string>
+  <string name="morphe_spoof_app_version_target_entry_20_39">20.39.41 - 以前の「再生リストに保存」に戻す</string>
   <string name="morphe_spoof_app_version_target_entry_20_28">20.28.41 - アイコンの太字表示を無効化</string>
   <string name="morphe_spoof_app_version_target_entry_20_13">20.13.41 - アクション ボタンの文字表示を復元</string>
   <!-- misc.sharesheet.openSystemShareSheetPatch -->
@@ -1420,12 +1450,6 @@ Automotive レイアウト
   <string name="morphe_miniplayer_disable_rounded_corners_title">ミニプレーヤーを直角化</string>
   <string name="morphe_miniplayer_disable_rounded_corners_summary_on">ミニプレーヤーの角は直角です</string>
   <string name="morphe_miniplayer_disable_rounded_corners_summary_off">ミニプレーヤーの角は丸角です</string>
-  <string name="morphe_miniplayer_double_tap_action_title">ダブルタップとピンチによるサイズ変更を有効化</string>
-  <string name="morphe_miniplayer_double_tap_action_summary_on">"ダブルタップとピンチによるサイズ変更は有効です
-
-• ダブルタップするとミニプレーヤーのサイズが大きくなる
-• もう一度ダブルタップすると元のサイズに戻る"</string>
-  <string name="morphe_miniplayer_double_tap_action_summary_off">ダブルタップとピンチによるサイズ変更は無効です</string>
   <string name="morphe_miniplayer_disable_drag_and_drop_title">ドラッグ＆ドロップを無効化</string>
   <string name="morphe_miniplayer_disable_drag_and_drop_summary_on">ドラッグ＆ドロップは無効です</string>
   <string name="morphe_miniplayer_disable_drag_and_drop_summary_off">"ドラッグ＆ドロップは有効です
@@ -1439,11 +1463,6 @@ Automotive レイアウト
   <string name="morphe_miniplayer_hide_overlay_buttons_title">オーバーレイ ボタンを非表示</string>
   <string name="morphe_miniplayer_hide_overlay_buttons_summary_on">オーバーレイ ボタンは表示されません</string>
   <string name="morphe_miniplayer_hide_overlay_buttons_summary_off">オーバーレイ ボタンは表示されます</string>
-  <string name="morphe_miniplayer_hide_overlay_buttons_legacy_title">展開ボタンと閉じるボタンを非表示</string>
-  <string name="morphe_miniplayer_hide_overlay_buttons_legacy_summary_on">"ボタンは表示されません
-
-展開するまたは閉じるにはスワイプしてください"</string>
-  <string name="morphe_miniplayer_hide_overlay_buttons_legacy_summary_off">展開ボタンと閉じるボタンは表示されます</string>
   <string name="morphe_miniplayer_hide_subtext_title">サブテキストを非表示</string>
   <string name="morphe_miniplayer_hide_subtext_summary_on">サブテキストは表示されません</string>
   <string name="morphe_miniplayer_hide_subtext_summary_off">サブテキストは表示されます</string>
@@ -1519,6 +1538,10 @@ Automotive レイアウト
   <string name="morphe_alt_thumbnail_dearrow_error">DeArrow は一時的に利用できません (status code: %s)</string>
   <string name="morphe_alt_thumbnail_dearrow_error_generic">DeArrow は一時的に利用できません</string>
   <!-- misc.announcements.announcementsPatch -->
+  <!-- misc.playercontrols.playerControlsPatch -->
+  <string name="morphe_restore_old_player_buttons_title">以前のプレーヤーボタンのデザインに戻す</string>
+  <string name="morphe_restore_old_player_buttons_summary_on">プレーヤーボタンは細字デザインで表示されます</string>
+  <string name="morphe_restore_old_player_buttons_summary_off">プレーヤーボタンは太字デザインで表示されます</string>
   <!-- misc.dimensions.spoof.spoofDeviceDimensionsPatch -->
   <string name="morphe_spoof_device_dimensions_title">デバイスの画面サイズを偽装</string>
   <string name="morphe_spoof_device_dimensions_summary_on">"デバイスの画面サイズは偽装されています
@@ -1588,7 +1611,7 @@ Automotive レイアウト
   <string name="morphe_custom_speed_menu_title">カスタム再生速度メニュー</string>
   <string name="morphe_custom_speed_menu_summary_on">カスタム再生速度リストが再生速度メニューに表示されます</string>
   <string name="morphe_custom_speed_menu_summary_off">デフォルトの再生速度リストが再生速度メニューに表示されます</string>
-  <string name="morphe_restore_old_speed_menu_title">古い再生速度メニューを復元</string>
+  <string name="morphe_restore_old_speed_menu_title">以前の再生速度メニューに戻す</string>
   <string name="morphe_restore_old_speed_menu_summary_on">古いスタイルの再生速度メニューが表示されます</string>
   <string name="morphe_restore_old_speed_menu_summary_off">新しいスタイルの再生速度メニューが表示されます</string>
   <string name="morphe_custom_playback_speeds_title">カスタム再生速度リスト</string>
@@ -1625,6 +1648,8 @@ Automotive レイアウト
 • 動画再生時に VP9 または AV1 よりも多くの通信量を使用する
 • HDR 動画では AVC は使用されない
 • 一部のデバイスでは AVC を強制できない"</string>
+  <!-- 'Spoof video streams' should be the same translation used for 'morphe_spoof_video_streams_screen_title'. -->
+  <string name="morphe_force_avc_codec_not_available">この機能を使用するには、[動画ストリームを偽装] のクライアントを Android VR または Android Studio に変更してください</string>
   <!-- video.quality.advancedVideoQualityMenuPatch -->
   <string name="morphe_advanced_video_quality_menu_title">画質の詳細設定メニューを表示</string>
   <string name="morphe_advanced_video_quality_menu_summary_on">詳細設定メニューが画質メニューとして表示されます</string>
